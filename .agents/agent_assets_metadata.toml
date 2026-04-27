@@ -1,0 +1,20 @@
+uploads = []
+outputs = []
+
+[[generated]]
+id = "F41aXs1jA70Fvo4kHKtfm"
+uri = "file://artifacts/horizon-markets/public/images/hero-bg.png"
+type = "image"
+title = "Moody crypto trading hero background"
+
+[[generated]]
+id = "PXD2wtISVEe26x8-pwwqa"
+uri = "file://artifacts/horizon-markets/public/images/app-mockup.png"
+type = "image"
+title = "Phone mockup crypto trading app"
+
+[[generated]]
+id = "hBOv2oYuqHqjre7RsoeEK"
+uri = "file://artifacts/horizon-markets/public/images/blockchain-net.png"
+type = "image"
+title = "Abstract blockchain network"
