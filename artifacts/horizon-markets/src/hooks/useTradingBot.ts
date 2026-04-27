@@ -21,6 +21,9 @@ type BotState = {
   trades: BotTrade[];
   consecutiveWins: number;
   startedAt: number | null;
+  balance: number;
+  lastSettledPnl: number | null;
+  lastSettledAt: number | null;
 };
 
 const MAX_TRADES = 100;
@@ -83,6 +86,11 @@ function loadState(key: string): BotState | null {
       consecutiveWins:
         typeof v.consecutiveWins === "number" ? v.consecutiveWins : 0,
       startedAt: typeof v.startedAt === "number" ? v.startedAt : null,
+      balance: typeof v.balance === "number" ? v.balance : 0,
+      lastSettledPnl:
+        typeof v.lastSettledPnl === "number" ? v.lastSettledPnl : null,
+      lastSettledAt:
+        typeof v.lastSettledAt === "number" ? v.lastSettledAt : null,
     };
   } catch {
     return null;
@@ -111,6 +119,9 @@ export function useTradingBot() {
         trades: [],
         consecutiveWins: 0,
         startedAt: null,
+        balance: 0,
+        lastSettledPnl: null,
+        lastSettledAt: null,
       },
   );
 
@@ -162,7 +173,26 @@ export function useTradingBot() {
   );
 
   const stop = useCallback(
-    () => setState((s) => ({ ...s, isRunning: false })),
+    () =>
+      setState((s) => {
+        const sessionPnl = s.trades.reduce((acc, t) => acc + t.pnl, 0);
+        return {
+          ...s,
+          isRunning: false,
+          balance: Number((s.balance + sessionPnl).toFixed(2)),
+          trades: [],
+          consecutiveWins: 0,
+          startedAt: null,
+          lastSettledPnl: Number(sessionPnl.toFixed(2)),
+          lastSettledAt: Date.now(),
+        };
+      }),
+    [],
+  );
+
+  const clearSettledNotice = useCallback(
+    () =>
+      setState((s) => ({ ...s, lastSettledPnl: null, lastSettledAt: null })),
     [],
   );
 
@@ -179,6 +209,9 @@ export function useTradingBot() {
         trades: [],
         consecutiveWins: 0,
         startedAt: null,
+        balance: 0,
+        lastSettledPnl: null,
+        lastSettledAt: null,
       }),
     [],
   );
@@ -204,10 +237,14 @@ export function useTradingBot() {
     trades: state.trades,
     consecutiveWins: state.consecutiveWins,
     startedAt: state.startedAt,
+    balance: state.balance,
+    lastSettledPnl: state.lastSettledPnl,
+    lastSettledAt: state.lastSettledAt,
     ...stats,
     start,
     stop,
     setPair,
     reset,
+    clearSettledNotice,
   };
 }

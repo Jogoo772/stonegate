@@ -110,7 +110,7 @@ export default function Dashboard() {
     "Trader";
 
   const lastUpdatedLabel = dataUpdatedAt ? timeAgo(dataUpdatedAt) : "—";
-  const portfolioValue = 0;
+  const portfolioValue = bot.balance;
 
   return (
     <div className="min-h-screen bg-background text-foreground">
@@ -178,14 +178,20 @@ export default function Dashboard() {
               label="Portfolio Value"
               value={`$${formatUsd(portfolioValue)}`}
               sub={
-                <span className="text-muted-foreground">
-                  Fund your account to start trading
-                </span>
+                portfolioValue > 0 ? (
+                  <span className="text-primary">
+                    Settled bot profits in your wallet
+                  </span>
+                ) : (
+                  <span className="text-muted-foreground">
+                    Stop the bot to settle profits to balance
+                  </span>
+                )
               }
             />
             <SummaryCard
               icon={<TrendingUp className="w-5 h-5" />}
-              label="Bot P/L"
+              label="Session P/L"
               value={`${bot.totalPnl >= 0 ? "+" : "−"}$${formatUsd(Math.abs(bot.totalPnl))}`}
               sub={
                 <span
@@ -193,7 +199,9 @@ export default function Dashboard() {
                     bot.totalPnl >= 0 ? "text-primary" : "text-rose-400"
                   }
                 >
-                  {bot.total} executed · {bot.winRate.toFixed(1)}% win rate
+                  {bot.total > 0
+                    ? `${bot.total} trades · ${bot.winRate.toFixed(1)}% win rate`
+                    : "No active session"}
                 </span>
               }
             />

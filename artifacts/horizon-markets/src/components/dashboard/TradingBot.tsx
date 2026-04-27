@@ -9,6 +9,8 @@ import {
   TrendingUp,
   TrendingDown,
   Flame,
+  Wallet,
+  X,
 } from "lucide-react";
 import { useTradingBot, type BotPair } from "@/hooks/useTradingBot";
 
@@ -160,6 +162,45 @@ export function TradingBot() {
         <Tag>SL: $5 – $15</Tag>
         <Tag>Pairs: XAUUSD · BTCUSD</Tag>
       </div>
+
+      {/* Settlement notice */}
+      <AnimatePresence>
+        {bot.lastSettledPnl !== null && bot.lastSettledAt ? (
+          <motion.div
+            key="settled-banner"
+            initial={{ opacity: 0, y: -8, height: 0 }}
+            animate={{ opacity: 1, y: 0, height: "auto" }}
+            exit={{ opacity: 0, height: 0 }}
+            className="mb-5 overflow-hidden"
+          >
+            <div className="flex items-center justify-between gap-3 rounded-lg border border-primary/25 bg-primary/[0.07] px-4 py-3">
+              <div className="flex items-center gap-3">
+                <div className="w-8 h-8 rounded-full bg-primary/15 text-primary flex items-center justify-center">
+                  <Wallet className="w-4 h-4" />
+                </div>
+                <div>
+                  <div className="text-sm font-semibold text-foreground">
+                    {bot.lastSettledPnl >= 0
+                      ? `Profits settled: +$${bot.lastSettledPnl.toFixed(2)} added to your balance`
+                      : `Session settled: −$${Math.abs(bot.lastSettledPnl).toFixed(2)} deducted from your balance`}
+                  </div>
+                  <div className="text-xs text-muted-foreground">
+                    New balance: ${bot.balance.toFixed(2)} · Press start to
+                    begin a new session
+                  </div>
+                </div>
+              </div>
+              <button
+                onClick={bot.clearSettledNotice}
+                className="text-muted-foreground hover:text-foreground p-1 rounded"
+                aria-label="Dismiss"
+              >
+                <X className="w-4 h-4" />
+              </button>
+            </div>
+          </motion.div>
+        ) : null}
+      </AnimatePresence>
 
       {/* Live trades feed */}
       <div className="relative">
