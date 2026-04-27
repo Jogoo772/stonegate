@@ -15,6 +15,40 @@ export type BotTrade = {
   closedAt: number;
 };
 
+export type WithdrawalNetwork =
+  | "BTC"
+  | "ETH"
+  | "USDT_TRC20"
+  | "USDT_ERC20"
+  | "SOL";
+
+export type WithdrawalStatus = "PENDING" | "PROCESSING" | "COMPLETED";
+
+export type Withdrawal = {
+  id: string;
+  amount: number;
+  address: string;
+  network: WithdrawalNetwork;
+  status: WithdrawalStatus;
+  requestedAt: number;
+  completedAt: number | null;
+  txHash: string | null;
+};
+
+export const MIN_WITHDRAWAL_USD = 10;
+
+export const NETWORK_LABELS: Record<WithdrawalNetwork, string> = {
+  BTC: "Bitcoin (BTC)",
+  ETH: "Ethereum (ERC-20)",
+  USDT_TRC20: "USDT (TRC-20)",
+  USDT_ERC20: "USDT (ERC-20)",
+  SOL: "Solana (SOL)",
+};
+
+export type WithdrawResult =
+  | { ok: true; withdrawal: Withdrawal }
+  | { ok: false; error: string };
+
 type BotState = {
   isRunning: boolean;
   pair: BotPair;
@@ -24,6 +58,7 @@ type BotState = {
   balance: number;
   lastSettledPnl: number | null;
   lastSettledAt: number | null;
+  withdrawals: Withdrawal[];
 };
 
 const MAX_TRADES = 100;
@@ -91,6 +126,9 @@ function loadState(key: string): BotState | null {
         typeof v.lastSettledPnl === "number" ? v.lastSettledPnl : null,
       lastSettledAt:
         typeof v.lastSettledAt === "number" ? v.lastSettledAt : null,
+      withdrawals: Array.isArray(v.withdrawals)
+        ? (v.withdrawals as Withdrawal[])
+        : [],
     };
   } catch {
     return null;
@@ -122,6 +160,7 @@ export function useTradingBot() {
         balance: 0,
         lastSettledPnl: null,
         lastSettledAt: null,
+        withdrawals: [],
       },
   );
 
@@ -212,7 +251,63 @@ export function useTradingBot() {
         balance: 0,
         lastSettledPnl: null,
         lastSettledAt: null,
+        withdrawals: [],
       }),
+    [],
+  );
+
+  const requestWithdrawal = useCallback(
+    (
+      amount: number,
+      address: string,
+      network: WithdrawalNetwork,
+    ): WithdrawResult => {
+      const cleanAddress = address.trim();
+      if (!Number.isFinite(amount) || amount <= 0) {
+        return { ok: false, error: "Enter a valid amount" };
+      }
+      if (amount < MIN_WITHDRAWAL_USD) {
+        return {
+          ok: false,
+          error: `Minimum withdrawal is $${MIN_WITHDRAWAL_USD.toFixed(2)}`,
+        };
+      }
+      if (cleanAddress.length < 16) {
+        return { ok: false, error: "Wallet address looks invalid" };
+      }
+      let result: WithdrawResult = {
+        ok: false,
+        error: "Insufficient balance",
+      };
+      setState((s) => {
+        if (amount > s.balance) {
+          result = {
+            ok: false,
+            error: `Insufficient balance. Available: $${s.balance.toFixed(2)}`,
+          };
+          return s;
+        }
+        const withdrawal: Withdrawal = {
+          id: `W${Date.now().toString(36)}${Math.floor(
+            Math.random() * 1e6,
+          ).toString(36)}`,
+          amount: Number(amount.toFixed(2)),
+          address: cleanAddress,
+          network,
+          status: "PENDING",
+          requestedAt: Date.now(),
+          completedAt: null,
+          txHash: null,
+        };
+        result = { ok: true, withdrawal };
+        return {
+          ...s,
+          balance: Number((s.balance - amount).toFixed(2)),
+          withdrawals: [withdrawal, ...s.withdrawals].slice(0, 50),
+        };
+      });
+      return result;
+    },
     [],
   );
 
@@ -240,11 +335,13 @@ export function useTradingBot() {
     balance: state.balance,
     lastSettledPnl: state.lastSettledPnl,
     lastSettledAt: state.lastSettledAt,
+    withdrawals: state.withdrawals,
     ...stats,
     start,
     stop,
     setPair,
     reset,
     clearSettledNotice,
+    requestWithdrawal,
   };
 }

@@ -17,6 +17,8 @@ import {
 import { useLivePrices, type LivePrice } from "@/hooks/useLivePrices";
 import { useTradingBot } from "@/hooks/useTradingBot";
 import { TradingBot } from "@/components/dashboard/TradingBot";
+import { WithdrawDialog } from "@/components/dashboard/WithdrawDialog";
+import { WithdrawalsHistory } from "@/components/dashboard/WithdrawalsHistory";
 
 const COIN_ICONS: Record<string, string> = {
   BTC: "https://assets.coincap.io/assets/icons/btc@2x.png",
@@ -111,6 +113,7 @@ export default function Dashboard() {
 
   const lastUpdatedLabel = dataUpdatedAt ? timeAgo(dataUpdatedAt) : "—";
   const portfolioValue = bot.balance;
+  const [withdrawOpen, setWithdrawOpen] = useState(false);
 
   return (
     <div className="min-h-screen bg-background text-foreground">
@@ -245,7 +248,11 @@ export default function Dashboard() {
               </h2>
               <div className="space-y-3">
                 <ActionButton label="Deposit Funds" primary />
-                <ActionButton label="Withdraw" />
+                <ActionButton
+                  label="Withdraw"
+                  onClick={() => setWithdrawOpen(true)}
+                  disabled={portfolioValue <= 0}
+                />
                 <ActionButton label="Buy Crypto" />
                 <ActionButton label="Sell" />
                 <ActionButton label="Open Trading Terminal" />
@@ -262,6 +269,12 @@ export default function Dashboard() {
               </div>
             </Card>
           </div>
+
+          {/* Withdrawals */}
+          <WithdrawalsHistory
+            withdrawals={bot.withdrawals}
+            onWithdrawClick={() => setWithdrawOpen(true)}
+          />
 
           {/* Live markets */}
           <Card className="bg-[#0c0c0c] border-white/5 p-6 mt-6">
@@ -369,6 +382,13 @@ export default function Dashboard() {
           </Card>
         </div>
       </main>
+
+      <WithdrawDialog
+        open={withdrawOpen}
+        onOpenChange={setWithdrawOpen}
+        balance={portfolioValue}
+        onSubmit={bot.requestWithdrawal}
+      />
     </div>
   );
 }
@@ -406,17 +426,23 @@ function SummaryCard({
 function ActionButton({
   label,
   primary,
+  onClick,
+  disabled,
 }: {
   label: string;
   primary?: boolean;
+  onClick?: () => void;
+  disabled?: boolean;
 }) {
   return (
     <Button
+      onClick={onClick}
+      disabled={disabled}
       className={`w-full justify-start font-semibold ${
         primary
           ? "bg-primary text-primary-foreground hover:bg-primary/90 shadow-[0_0_15px_rgba(0,255,136,0.25)]"
           : "bg-white/5 hover:bg-white/10 text-foreground"
-      }`}
+      } disabled:opacity-50 disabled:cursor-not-allowed`}
     >
       {label}
     </Button>
