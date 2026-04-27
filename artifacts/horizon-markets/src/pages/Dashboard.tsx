@@ -18,7 +18,8 @@ import { useLivePrices, type LivePrice } from "@/hooks/useLivePrices";
 import { useTradingBot } from "@/hooks/useTradingBot";
 import { TradingBot } from "@/components/dashboard/TradingBot";
 import { WithdrawDialog } from "@/components/dashboard/WithdrawDialog";
-import { WithdrawalsHistory } from "@/components/dashboard/WithdrawalsHistory";
+import { DepositDialog } from "@/components/dashboard/DepositDialog";
+import { TransactionsFeed } from "@/components/dashboard/TransactionsFeed";
 
 const COIN_ICONS: Record<string, string> = {
   BTC: "https://assets.coincap.io/assets/icons/btc@2x.png",
@@ -114,6 +115,7 @@ export default function Dashboard() {
   const lastUpdatedLabel = dataUpdatedAt ? timeAgo(dataUpdatedAt) : "—";
   const portfolioValue = bot.balance;
   const [withdrawOpen, setWithdrawOpen] = useState(false);
+  const [depositOpen, setDepositOpen] = useState(false);
 
   return (
     <div className="min-h-screen bg-background text-foreground">
@@ -247,7 +249,11 @@ export default function Dashboard() {
                 Quick Actions
               </h2>
               <div className="space-y-3">
-                <ActionButton label="Deposit Funds" primary />
+                <ActionButton
+                  label="Deposit Funds"
+                  primary
+                  onClick={() => setDepositOpen(true)}
+                />
                 <ActionButton
                   label="Withdraw"
                   onClick={() => setWithdrawOpen(true)}
@@ -270,9 +276,11 @@ export default function Dashboard() {
             </Card>
           </div>
 
-          {/* Withdrawals */}
-          <WithdrawalsHistory
+          {/* Transactions */}
+          <TransactionsFeed
+            deposits={bot.deposits}
             withdrawals={bot.withdrawals}
+            onDepositClick={() => setDepositOpen(true)}
             onWithdrawClick={() => setWithdrawOpen(true)}
           />
 
@@ -388,6 +396,12 @@ export default function Dashboard() {
         onOpenChange={setWithdrawOpen}
         balance={portfolioValue}
         onSubmit={bot.requestWithdrawal}
+      />
+      <DepositDialog
+        open={depositOpen}
+        onOpenChange={setDepositOpen}
+        getDepositAddress={bot.getDepositAddress}
+        onSubmit={bot.simulateDeposit}
       />
     </div>
   );

@@ -35,7 +35,22 @@ export type Withdrawal = {
   txHash: string | null;
 };
 
+export type DepositStatus = "PENDING" | "CONFIRMED";
+
+export type Deposit = {
+  id: string;
+  amount: number;
+  address: string;
+  network: WithdrawalNetwork;
+  status: DepositStatus;
+  createdAt: number;
+  confirmAt: number;
+  confirmedAt: number | null;
+  txHash: string;
+};
+
 export const MIN_WITHDRAWAL_USD = 10;
+export const MIN_DEPOSIT_USD = 10;
 
 export const NETWORK_LABELS: Record<WithdrawalNetwork, string> = {
   BTC: "Bitcoin (BTC)",
@@ -49,6 +64,10 @@ export type WithdrawResult =
   | { ok: true; withdrawal: Withdrawal }
   | { ok: false; error: string };
 
+export type DepositResult =
+  | { ok: true; deposit: Deposit }
+  | { ok: false; error: string };
+
 type BotState = {
   isRunning: boolean;
   pair: BotPair;
@@ -59,6 +78,8 @@ type BotState = {
   lastSettledPnl: number | null;
   lastSettledAt: number | null;
   withdrawals: Withdrawal[];
+  deposits: Deposit[];
+  depositAddresses: Partial<Record<WithdrawalNetwork, string>>;
 };
 
 const MAX_TRADES = 100;
@@ -75,6 +96,66 @@ const LOSS_PROBABILITY_AFTER_STREAK = 0.5;
 
 function rand(min: number, max: number) {
   return min + Math.random() * (max - min);
+}
+
+const BASE58 =
+  "123456789ABCDEFGHJKLMNPQRSTUVWXYZabcdefghijkmnopqrstuvwxyz";
+const HEX = "0123456789abcdef";
+
+function hashSeed(seed: string): number {
+  let h = 2166136261 >>> 0;
+  for (let i = 0; i < seed.length; i++) {
+    h ^= seed.charCodeAt(i);
+    h = Math.imul(h, 16777619) >>> 0;
+  }
+  return h;
+}
+
+function seededRandom(seed: string) {
+  let state = hashSeed(seed) || 1;
+  return () => {
+    state ^= state << 13;
+    state ^= state >>> 17;
+    state ^= state << 5;
+    state >>>= 0;
+    return state / 0xffffffff;
+  };
+}
+
+function randomString(charset: string, length: number, rng: () => number) {
+  let out = "";
+  for (let i = 0; i < length; i++) {
+    out += charset[Math.floor(rng() * charset.length)];
+  }
+  return out;
+}
+
+function generateAddress(
+  network: "BTC" | "ETH" | "USDT_TRC20" | "USDT_ERC20" | "SOL",
+  userKey: string,
+): string {
+  const rng = seededRandom(`${userKey}:${network}`);
+  switch (network) {
+    case "BTC":
+      return `bc1q${randomString(BASE58.toLowerCase(), 38, rng)}`;
+    case "ETH":
+    case "USDT_ERC20":
+      return `0x${randomString(HEX, 40, rng)}`;
+    case "USDT_TRC20":
+      return `T${randomString(BASE58, 33, rng)}`;
+    case "SOL":
+      return randomString(BASE58, 44, rng);
+  }
+}
+
+function generateTxHash(
+  network: "BTC" | "ETH" | "USDT_TRC20" | "USDT_ERC20" | "SOL",
+): string {
+  const rng = seededRandom(`tx:${Date.now()}:${Math.random()}`);
+  if (network === "ETH" || network === "USDT_ERC20") {
+    return `0x${randomString(HEX, 64, rng)}`;
+  }
+  return randomString(HEX, 64, rng);
 }
 
 function pickPair(p: BotPair): TradePair {
@@ -129,6 +210,11 @@ function loadState(key: string): BotState | null {
       withdrawals: Array.isArray(v.withdrawals)
         ? (v.withdrawals as Withdrawal[])
         : [],
+      deposits: Array.isArray(v.deposits) ? (v.deposits as Deposit[]) : [],
+      depositAddresses:
+        v.depositAddresses && typeof v.depositAddresses === "object"
+          ? (v.depositAddresses as Partial<Record<WithdrawalNetwork, string>>)
+          : {},
     };
   } catch {
     return null;
@@ -161,6 +247,8 @@ export function useTradingBot() {
         lastSettledPnl: null,
         lastSettledAt: null,
         withdrawals: [],
+        deposits: [],
+        depositAddresses: {},
       },
   );
 
@@ -252,6 +340,8 @@ export function useTradingBot() {
         lastSettledPnl: null,
         lastSettledAt: null,
         withdrawals: [],
+        deposits: [],
+        depositAddresses: {},
       }),
     [],
   );
@@ -311,6 +401,87 @@ export function useTradingBot() {
     [],
   );
 
+  const getDepositAddress = useCallback(
+    (network: WithdrawalNetwork): string => {
+      const existing = state.depositAddresses[network];
+      if (existing) return existing;
+      const fresh = generateAddress(network, userKey);
+      setState((s) =>
+        s.depositAddresses[network]
+          ? s
+          : {
+              ...s,
+              depositAddresses: { ...s.depositAddresses, [network]: fresh },
+            },
+      );
+      return fresh;
+    },
+    [state.depositAddresses, userKey],
+  );
+
+  const simulateDeposit = useCallback(
+    (amount: number, network: WithdrawalNetwork): DepositResult => {
+      if (!Number.isFinite(amount) || amount <= 0) {
+        return { ok: false, error: "Enter a valid amount" };
+      }
+      if (amount < MIN_DEPOSIT_USD) {
+        return {
+          ok: false,
+          error: `Minimum deposit is $${MIN_DEPOSIT_USD.toFixed(2)}`,
+        };
+      }
+      const address =
+        state.depositAddresses[network] ?? generateAddress(network, userKey);
+      const now = Date.now();
+      const deposit: Deposit = {
+        id: `D${now.toString(36)}${Math.floor(Math.random() * 1e6).toString(36)}`,
+        amount: Number(amount.toFixed(2)),
+        address,
+        network,
+        status: "PENDING",
+        createdAt: now,
+        confirmAt: now + Math.floor(rand(4_000, 9_000)),
+        confirmedAt: null,
+        txHash: generateTxHash(network),
+      };
+      setState((s) => ({
+        ...s,
+        deposits: [deposit, ...s.deposits].slice(0, 50),
+        depositAddresses: s.depositAddresses[network]
+          ? s.depositAddresses
+          : { ...s.depositAddresses, [network]: address },
+      }));
+      return { ok: true, deposit };
+    },
+    [state.depositAddresses, userKey],
+  );
+
+  // Confirm pending deposits and credit balance
+  useEffect(() => {
+    const hasPending = state.deposits.some((d) => d.status === "PENDING");
+    if (!hasPending) return;
+    const id = setInterval(() => {
+      setState((s) => {
+        const now = Date.now();
+        let credited = 0;
+        const deposits = s.deposits.map((d) => {
+          if (d.status === "PENDING" && now >= d.confirmAt) {
+            credited += d.amount;
+            return { ...d, status: "CONFIRMED" as DepositStatus, confirmedAt: now };
+          }
+          return d;
+        });
+        if (credited === 0) return s;
+        return {
+          ...s,
+          deposits,
+          balance: Number((s.balance + credited).toFixed(2)),
+        };
+      });
+    }, 800);
+    return () => clearInterval(id);
+  }, [state.deposits]);
+
   const stats = useMemo(() => {
     const wins = state.trades.filter((t) => t.outcome === "WIN").length;
     const total = state.trades.length;
@@ -336,6 +507,7 @@ export function useTradingBot() {
     lastSettledPnl: state.lastSettledPnl,
     lastSettledAt: state.lastSettledAt,
     withdrawals: state.withdrawals,
+    deposits: state.deposits,
     ...stats,
     start,
     stop,
@@ -343,5 +515,7 @@ export function useTradingBot() {
     reset,
     clearSettledNotice,
     requestWithdrawal,
+    getDepositAddress,
+    simulateDeposit,
   };
 }
