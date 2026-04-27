@@ -1,3 +1,4 @@
+import { useEffect, useMemo, useRef, useState } from "react";
 import { motion } from "framer-motion";
 import { useUser } from "@clerk/react";
 import { Navbar } from "@/components/layout/Navbar";
@@ -11,41 +12,26 @@ import {
   TrendingUp,
   Activity,
   ShieldCheck,
+  RefreshCw,
 } from "lucide-react";
+import { useLivePrices, type LivePrice } from "@/hooks/useLivePrices";
 
-const HOLDINGS = [
-  {
-    symbol: "BTC",
-    name: "Bitcoin",
-    icon: "https://assets.coincap.io/assets/icons/btc@2x.png",
-    amount: 0.4218,
-    valueUsd: 41087.42,
-    change24h: 1.84,
-  },
-  {
-    symbol: "ETH",
-    name: "Ethereum",
-    icon: "https://assets.coincap.io/assets/icons/eth@2x.png",
-    amount: 6.73,
-    valueUsd: 23210.18,
-    change24h: 2.41,
-  },
-  {
-    symbol: "SOL",
-    name: "Solana",
-    icon: "https://assets.coincap.io/assets/icons/sol@2x.png",
-    amount: 84.2,
-    valueUsd: 12104.55,
-    change24h: -0.94,
-  },
-  {
-    symbol: "USDT",
-    name: "Tether",
-    icon: "https://assets.coincap.io/assets/icons/usdt@2x.png",
-    amount: 8420.0,
-    valueUsd: 8420.0,
-    change24h: 0.01,
-  },
+const COIN_ICONS: Record<string, string> = {
+  BTC: "https://assets.coincap.io/assets/icons/btc@2x.png",
+  ETH: "https://assets.coincap.io/assets/icons/eth@2x.png",
+  SOL: "https://assets.coincap.io/assets/icons/sol@2x.png",
+  USDT: "https://assets.coincap.io/assets/icons/usdt@2x.png",
+  XRP: "https://assets.coincap.io/assets/icons/xrp@2x.png",
+  BNB: "https://assets.coincap.io/assets/icons/bnb@2x.png",
+  DOGE: "https://assets.coincap.io/assets/icons/doge@2x.png",
+  ADA: "https://assets.coincap.io/assets/icons/ada@2x.png",
+};
+
+const HOLDINGS_AMOUNTS: { symbol: string; name: string; amount: number }[] = [
+  { symbol: "BTC", name: "Bitcoin", amount: 0.4218 },
+  { symbol: "ETH", name: "Ethereum", amount: 6.73 },
+  { symbol: "SOL", name: "Solana", amount: 84.2 },
+  { symbol: "USDT", name: "Tether", amount: 8420.0 },
 ];
 
 const RECENT_ORDERS = [
@@ -91,16 +77,97 @@ const RECENT_ORDERS = [
   },
 ];
 
+function formatUsd(value: number, max = 2): string {
+  return value.toLocaleString(undefined, {
+    minimumFractionDigits: max,
+    maximumFractionDigits: max,
+  });
+}
+
+function formatPrice(value: number): string {
+  if (value >= 1000) return formatUsd(value, 2);
+  if (value >= 1) return formatUsd(value, 3);
+  return formatUsd(value, 4);
+}
+
+function timeAgo(ms: number): string {
+  const diff = Math.max(0, Date.now() - ms);
+  const s = Math.floor(diff / 1000);
+  if (s < 60) return `${s}s ago`;
+  const m = Math.floor(s / 60);
+  if (m < 60) return `${m}m ago`;
+  const h = Math.floor(m / 60);
+  return `${h}h ago`;
+}
+
+function PriceCell({ price }: { price: LivePrice }) {
+  const prevRef = useRef<number>(price.price);
+  const [flash, setFlash] = useState<"up" | "down" | null>(null);
+
+  useEffect(() => {
+    const prev = prevRef.current;
+    if (price.price === prev) return;
+    setFlash(price.price > prev ? "up" : "down");
+    prevRef.current = price.price;
+    const t = setTimeout(() => setFlash(null), 800);
+    return () => clearTimeout(t);
+  }, [price.price]);
+
+  return (
+    <span
+      className={`font-mono font-semibold transition-colors duration-500 ${
+        flash === "up"
+          ? "text-primary"
+          : flash === "down"
+            ? "text-rose-400"
+            : "text-foreground"
+      }`}
+    >
+      ${formatPrice(price.price)}
+    </span>
+  );
+}
+
 export default function Dashboard() {
   const { user } = useUser();
-  const totalValue = HOLDINGS.reduce((s, h) => s + h.valueUsd, 0);
-  const dayChange = HOLDINGS.reduce(
+  const { data: prices, isLoading, isFetching, dataUpdatedAt, refetch, error } =
+    useLivePrices();
+
+  const [, force] = useState(0);
+  useEffect(() => {
+    const id = setInterval(() => force((n) => n + 1), 1000);
+    return () => clearInterval(id);
+  }, []);
+
+  const holdings = useMemo(() => {
+    return HOLDINGS_AMOUNTS.map((h) => {
+      const live = prices?.[h.symbol];
+      const price = live?.price ?? 0;
+      const change24h = live?.change24h ?? 0;
+      const valueUsd = h.amount * price;
+      return { ...h, price, change24h, valueUsd, live };
+    });
+  }, [prices]);
+
+  const totalValue = holdings.reduce((s, h) => s + h.valueUsd, 0);
+  const dayChange = holdings.reduce(
     (s, h) => s + (h.valueUsd * h.change24h) / 100,
     0,
   );
-  const dayChangePct = (dayChange / totalValue) * 100;
+  const dayChangePct = totalValue > 0 ? (dayChange / totalValue) * 100 : 0;
+
+  const marketRows: LivePrice[] = useMemo(() => {
+    if (!prices) return [];
+    return Object.values(prices);
+  }, [prices]);
+
   const firstName =
-    user?.firstName || user?.username || user?.primaryEmailAddress?.emailAddress?.split("@")[0] || "Trader";
+    user?.firstName ||
+    user?.username ||
+    user?.primaryEmailAddress?.emailAddress?.split("@")[0] ||
+    "Trader";
+
+  const lastUpdatedLabel = dataUpdatedAt ? timeAgo(dataUpdatedAt) : "—";
 
   return (
     <div className="min-h-screen bg-background text-foreground">
@@ -111,21 +178,54 @@ export default function Dashboard() {
             initial={{ opacity: 0, y: 16 }}
             animate={{ opacity: 1, y: 0 }}
             transition={{ duration: 0.4 }}
-            className="mb-10"
+            className="mb-10 flex flex-col md:flex-row md:items-end md:justify-between gap-4"
           >
-            <Badge className="bg-primary/10 text-primary border-primary/20 mb-3">
-              <span className="w-1.5 h-1.5 rounded-full bg-primary mr-1.5 animate-pulse" />
-              Account verified
-            </Badge>
-            <h1 className="text-4xl md:text-5xl font-black tracking-tighter">
-              Welcome back,{" "}
-              <span className="text-transparent bg-clip-text bg-gradient-to-r from-primary to-emerald-400">
-                {firstName}
-              </span>
-            </h1>
-            <p className="text-muted-foreground mt-2">
-              Here's a snapshot of your trading account.
-            </p>
+            <div>
+              <Badge className="bg-primary/10 text-primary border-primary/20 mb-3">
+                <span className="w-1.5 h-1.5 rounded-full bg-primary mr-1.5 animate-pulse" />
+                Account verified
+              </Badge>
+              <h1 className="text-4xl md:text-5xl font-black tracking-tighter">
+                Welcome back,{" "}
+                <span className="text-transparent bg-clip-text bg-gradient-to-r from-primary to-emerald-400">
+                  {firstName}
+                </span>
+              </h1>
+              <p className="text-muted-foreground mt-2">
+                Live market data, streaming straight from the exchange.
+              </p>
+            </div>
+            <div className="flex items-center gap-3">
+              <div className="flex items-center gap-2 px-3 py-2 rounded-full border border-white/10 bg-white/[0.03]">
+                <span
+                  className={`w-2 h-2 rounded-full ${
+                    error
+                      ? "bg-rose-400"
+                      : isFetching
+                        ? "bg-primary animate-pulse"
+                        : "bg-primary"
+                  }`}
+                />
+                <span className="text-xs font-medium text-muted-foreground">
+                  {error
+                    ? "Reconnecting…"
+                    : isFetching
+                      ? "Updating…"
+                      : `Live · updated ${lastUpdatedLabel}`}
+                </span>
+              </div>
+              <Button
+                size="sm"
+                variant="outline"
+                onClick={() => refetch()}
+                className="border-white/15 hover:bg-white/5"
+                aria-label="Refresh prices"
+              >
+                <RefreshCw
+                  className={`w-4 h-4 ${isFetching ? "animate-spin" : ""}`}
+                />
+              </Button>
+            </div>
           </motion.div>
 
           {/* Summary cards */}
@@ -133,15 +233,20 @@ export default function Dashboard() {
             <SummaryCard
               icon={<Wallet className="w-5 h-5" />}
               label="Total Portfolio Value"
-              value={`$${totalValue.toLocaleString(undefined, { maximumFractionDigits: 2 })}`}
+              value={
+                isLoading && totalValue === 0
+                  ? "—"
+                  : `$${formatUsd(totalValue)}`
+              }
               sub={
                 <span
                   className={
                     dayChange >= 0 ? "text-primary" : "text-rose-400"
                   }
                 >
-                  {dayChange >= 0 ? "+" : ""}
-                  ${Math.abs(dayChange).toFixed(2)} ({dayChangePct.toFixed(2)}%) 24h
+                  {dayChange >= 0 ? "+" : "−"}$
+                  {formatUsd(Math.abs(dayChange))} ({dayChangePct.toFixed(2)}%)
+                  24h
                 </span>
               }
             />
@@ -165,7 +270,11 @@ export default function Dashboard() {
               icon={<ShieldCheck className="w-5 h-5" />}
               label="Account Tier"
               value="VIP 2"
-              sub={<span className="text-muted-foreground">Maker 0.04% / Taker 0.06%</span>}
+              sub={
+                <span className="text-muted-foreground">
+                  Maker 0.04% / Taker 0.06%
+                </span>
+              }
             />
           </div>
 
@@ -178,7 +287,7 @@ export default function Dashboard() {
                     Your Holdings
                   </h2>
                   <p className="text-sm text-muted-foreground">
-                    {HOLDINGS.length} assets
+                    {holdings.length} assets · live valuations
                   </p>
                 </div>
                 <Button
@@ -189,32 +298,41 @@ export default function Dashboard() {
                 </Button>
               </div>
               <div className="divide-y divide-white/5">
-                {HOLDINGS.map((h) => {
+                {holdings.map((h) => {
                   const positive = h.change24h >= 0;
                   return (
                     <div
                       key={h.symbol}
                       className="flex items-center justify-between py-4"
                     >
-                      <div className="flex items-center gap-3">
+                      <div className="flex items-center gap-3 flex-1 min-w-0">
                         <img
-                          src={h.icon}
+                          src={COIN_ICONS[h.symbol]}
                           alt={h.symbol}
                           className="w-9 h-9 rounded-full"
                         />
-                        <div>
+                        <div className="min-w-0">
                           <div className="font-semibold">{h.symbol}</div>
-                          <div className="text-xs text-muted-foreground">
+                          <div className="text-xs text-muted-foreground truncate">
                             {h.name}
                           </div>
                         </div>
                       </div>
-                      <div className="text-right">
+                      <div className="text-right hidden sm:block w-32">
+                        {h.live ? (
+                          <PriceCell price={h.live} />
+                        ) : (
+                          <span className="font-mono text-muted-foreground">
+                            —
+                          </span>
+                        )}
+                        <div className="text-xs text-muted-foreground font-mono">
+                          spot
+                        </div>
+                      </div>
+                      <div className="text-right w-32">
                         <div className="font-mono font-semibold">
-                          $
-                          {h.valueUsd.toLocaleString(undefined, {
-                            maximumFractionDigits: 2,
-                          })}
+                          {h.valueUsd > 0 ? `$${formatUsd(h.valueUsd)}` : "—"}
                         </div>
                         <div className="text-xs text-muted-foreground font-mono">
                           {h.amount} {h.symbol}
@@ -263,6 +381,111 @@ export default function Dashboard() {
               </div>
             </Card>
           </div>
+
+          {/* Live markets */}
+          <Card className="bg-[#0c0c0c] border-white/5 p-6 mt-6">
+            <div className="flex items-center justify-between mb-5">
+              <div>
+                <h2 className="text-xl font-bold tracking-tight flex items-center gap-2">
+                  Live Markets
+                  <span className="inline-flex items-center gap-1.5 text-xs font-semibold text-primary bg-primary/10 border border-primary/20 px-2 py-0.5 rounded-full">
+                    <span className="w-1.5 h-1.5 rounded-full bg-primary animate-pulse" />
+                    REAL-TIME
+                  </span>
+                </h2>
+                <p className="text-sm text-muted-foreground">
+                  Spot prices, refreshed every 12 seconds
+                </p>
+              </div>
+              <Button
+                size="sm"
+                variant="outline"
+                className="border-white/15 hover:bg-white/5"
+              >
+                View all markets
+              </Button>
+            </div>
+            <div className="overflow-x-auto">
+              <table className="w-full text-sm">
+                <thead>
+                  <tr className="text-left text-xs uppercase tracking-widest text-muted-foreground border-b border-white/5">
+                    <th className="py-3 pr-4 font-medium">Asset</th>
+                    <th className="py-3 pr-4 font-medium text-right">
+                      Price (USD)
+                    </th>
+                    <th className="py-3 pr-4 font-medium text-right">
+                      24h Change
+                    </th>
+                    <th className="py-3 font-medium text-right">Updated</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {isLoading && marketRows.length === 0 ? (
+                    <tr>
+                      <td
+                        colSpan={4}
+                        className="py-10 text-center text-muted-foreground"
+                      >
+                        Loading live prices…
+                      </td>
+                    </tr>
+                  ) : (
+                    marketRows.map((p) => {
+                      const positive = p.change24h >= 0;
+                      return (
+                        <tr
+                          key={p.symbol}
+                          className="border-b border-white/5 hover:bg-white/[0.02] transition-colors"
+                        >
+                          <td className="py-3 pr-4">
+                            <div className="flex items-center gap-3">
+                              <img
+                                src={COIN_ICONS[p.symbol]}
+                                alt={p.symbol}
+                                className="w-7 h-7 rounded-full"
+                              />
+                              <div>
+                                <div className="font-semibold">{p.symbol}</div>
+                                <div className="text-xs text-muted-foreground">
+                                  {p.name}
+                                </div>
+                              </div>
+                            </div>
+                          </td>
+                          <td className="py-3 pr-4 text-right">
+                            <PriceCell price={p} />
+                          </td>
+                          <td
+                            className={`py-3 pr-4 text-right font-mono font-semibold ${
+                              positive ? "text-primary" : "text-rose-400"
+                            }`}
+                          >
+                            <span className="inline-flex items-center gap-1 justify-end">
+                              {positive ? (
+                                <ArrowUpRight className="w-3.5 h-3.5" />
+                              ) : (
+                                <ArrowDownRight className="w-3.5 h-3.5" />
+                              )}
+                              {positive ? "+" : ""}
+                              {p.change24h.toFixed(2)}%
+                            </span>
+                          </td>
+                          <td className="py-3 text-right text-muted-foreground text-xs">
+                            {timeAgo(p.lastUpdated)}
+                          </td>
+                        </tr>
+                      );
+                    })
+                  )}
+                </tbody>
+              </table>
+            </div>
+            {error ? (
+              <div className="mt-4 text-xs text-rose-400">
+                Couldn't reach market data feed. Retrying automatically…
+              </div>
+            ) : null}
+          </Card>
 
           {/* Recent orders */}
           <Card className="bg-[#0c0c0c] border-white/5 p-6 mt-6">
