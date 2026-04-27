@@ -158,7 +158,6 @@ export function TradingBot() {
       <div className="flex flex-wrap gap-2 mb-5 text-xs">
         <Tag>TP: $50 – $60</Tag>
         <Tag>SL: $5 – $15</Tag>
-        <Tag>Min 5 wins before any SL</Tag>
         <Tag>Pairs: XAUUSD · BTCUSD</Tag>
       </div>
 
