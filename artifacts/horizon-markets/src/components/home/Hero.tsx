@@ -1,6 +1,7 @@
 import { motion } from "framer-motion";
+import { Link } from "wouter";
 import { Button } from "@/components/ui/button";
-import { ArrowRight, Activity } from "lucide-react";
+import { ArrowRight } from "lucide-react";
 
 export function Hero() {
   return (
@@ -60,13 +61,17 @@ export function Hero() {
             transition={{ duration: 0.5, delay: 0.3 }}
             className="flex flex-col sm:flex-row items-center justify-center gap-4"
           >
-            <Button size="lg" className="w-full sm:w-auto h-14 px-8 text-lg font-bold bg-primary text-primary-foreground hover:bg-primary/90 shadow-[0_0_20px_rgba(0,255,136,0.4)] group">
-              Create Free Account
-              <ArrowRight className="ml-2 w-5 h-5 group-hover:translate-x-1 transition-transform" />
-            </Button>
-            <Button size="lg" variant="outline" className="w-full sm:w-auto h-14 px-8 text-lg font-semibold border-white/10 hover:bg-white/5">
-              Sign In
-            </Button>
+            <Link href="/sign-up" className="w-full sm:w-auto">
+              <Button size="lg" className="w-full sm:w-auto h-14 px-8 text-lg font-bold bg-primary text-primary-foreground hover:bg-primary/90 shadow-[0_0_20px_rgba(0,255,136,0.4)] group">
+                Create Free Account
+                <ArrowRight className="ml-2 w-5 h-5 group-hover:translate-x-1 transition-transform" />
+              </Button>
+            </Link>
+            <Link href="/sign-in" className="w-full sm:w-auto">
+              <Button size="lg" variant="outline" className="w-full sm:w-auto h-14 px-8 text-lg font-semibold border-white/10 hover:bg-white/5">
+                Sign In
+              </Button>
+            </Link>
           </motion.div>
         </div>
       </div>

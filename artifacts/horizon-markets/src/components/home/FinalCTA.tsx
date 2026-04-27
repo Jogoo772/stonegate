@@ -1,4 +1,5 @@
 import { motion } from "framer-motion";
+import { Link } from "wouter";
 import { Button } from "@/components/ui/button";
 
 export function FinalCTA() {
@@ -27,12 +28,16 @@ export function FinalCTA() {
             Join thousands of professional traders on Horizon Markets today. Setup takes less than 2 minutes.
           </p>
           <div className="flex flex-col sm:flex-row items-center justify-center gap-4">
-            <Button size="lg" className="w-full sm:w-auto h-14 px-10 text-lg font-bold bg-primary text-primary-foreground hover:bg-primary/90">
-              Create Free Account
-            </Button>
-            <Button size="lg" variant="outline" className="w-full sm:w-auto h-14 px-10 text-lg font-semibold border-white/20 hover:bg-white/5">
-              Contact Sales
-            </Button>
+            <Link href="/sign-up" className="w-full sm:w-auto">
+              <Button size="lg" className="w-full sm:w-auto h-14 px-10 text-lg font-bold bg-primary text-primary-foreground hover:bg-primary/90 shadow-[0_0_20px_rgba(0,255,136,0.4)]">
+                Create Free Account
+              </Button>
+            </Link>
+            <Link href="/sign-in" className="w-full sm:w-auto">
+              <Button size="lg" variant="outline" className="w-full sm:w-auto h-14 px-10 text-lg font-semibold border-white/20 hover:bg-white/5">
+                Sign In
+              </Button>
+            </Link>
           </div>
         </motion.div>
       </div>
