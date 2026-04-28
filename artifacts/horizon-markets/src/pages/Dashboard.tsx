@@ -185,11 +185,11 @@ export default function Dashboard() {
               sub={
                 portfolioValue > 0 ? (
                   <span className="text-primary">
-                    Settled bot profits in your wallet
+                    Available for trading and withdrawals
                   </span>
                 ) : (
                   <span className="text-muted-foreground">
-                    Stop the bot to settle profits to balance
+                    Deposit funds to start trading
                   </span>
                 )
               }

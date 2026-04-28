@@ -56,7 +56,7 @@ type Props = {
     amount: number,
     address: string,
     network: WithdrawalNetwork,
-  ) => WithdrawResult;
+  ) => Promise<WithdrawResult>;
 };
 
 export function WithdrawDialog({
@@ -70,6 +70,7 @@ export function WithdrawDialog({
   const [address, setAddress] = useState("");
   const [error, setError] = useState<string | null>(null);
   const [success, setSuccess] = useState<Withdrawal | null>(null);
+  const [submitting, setSubmitting] = useState(false);
 
   useEffect(() => {
     if (open) return;
@@ -94,14 +95,20 @@ export function WithdrawDialog({
     }
   };
 
-  const handleSubmit = (e: React.FormEvent) => {
+  const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
+    if (submitting) return;
     setError(null);
-    const res = onSubmit(numericAmount, address, network);
-    if (res.ok) {
-      setSuccess(res.withdrawal);
-    } else {
-      setError(res.error);
+    setSubmitting(true);
+    try {
+      const res = await onSubmit(numericAmount, address, network);
+      if (res.ok) {
+        setSuccess(res.withdrawal);
+      } else {
+        setError(res.error);
+      }
+    } finally {
+      setSubmitting(false);
     }
   };
 
@@ -122,11 +129,13 @@ export function WithdrawDialog({
                   <CheckCircle2 className="w-7 h-7" />
                 </div>
                 <DialogTitle className="text-center text-2xl tracking-tight">
-                  Withdrawal requested
+                  Withdrawal submitted
                 </DialogTitle>
                 <DialogDescription className="text-center text-muted-foreground">
-                  Your request is queued for processing. Funds typically arrive
-                  within 10–60 minutes after on-chain confirmation.
+                  Your request is queued for administrator review. You'll see
+                  the status update on your dashboard once it has been
+                  approved or rejected. Rejected requests are refunded
+                  automatically.
                 </DialogDescription>
               </DialogHeader>
               <div className="mt-5 space-y-3 rounded-lg border border-white/10 bg-white/[0.02] p-4 text-sm">
@@ -145,7 +154,7 @@ export function WithdrawDialog({
                   mono
                   copy={success.address}
                 />
-                <Row label="Status" value="PENDING" highlight />
+                <Row label="Status" value="AWAITING REVIEW" highlight />
               </div>
               <Button
                 onClick={() => onOpenChange(false)}
@@ -167,7 +176,8 @@ export function WithdrawDialog({
                   Withdraw funds
                 </DialogTitle>
                 <DialogDescription className="text-muted-foreground">
-                  Send your settled balance to an external wallet.
+                  Submit a withdrawal request — every withdrawal is reviewed
+                  and approved manually by the HedgeGate administrator.
                 </DialogDescription>
               </DialogHeader>
 
@@ -291,10 +301,10 @@ export function WithdrawDialog({
                   </Button>
                   <Button
                     type="submit"
-                    disabled={balance <= 0}
+                    disabled={balance <= 0 || submitting}
                     className="flex-1 bg-primary text-primary-foreground hover:bg-primary/90 font-semibold disabled:opacity-50"
                   >
-                    Withdraw
+                    {submitting ? "Submitting…" : "Submit for review"}
                   </Button>
                 </div>
                 <p className="text-[11px] text-muted-foreground text-center leading-relaxed">

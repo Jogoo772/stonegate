@@ -137,7 +137,13 @@ export function TradingBot() {
             <Button
               size="sm"
               onClick={bot.start}
-              className="bg-primary text-primary-foreground hover:bg-primary/90 font-bold shadow-[0_0_15px_rgba(255,179,0,0.35)]"
+              disabled={bot.balance <= 0}
+              title={
+                bot.balance <= 0
+                  ? "Deposit funds to start the trading bot"
+                  : undefined
+              }
+              className="bg-primary text-primary-foreground hover:bg-primary/90 font-bold shadow-[0_0_15px_rgba(255,179,0,0.35)] disabled:opacity-50 disabled:cursor-not-allowed disabled:shadow-none"
             >
               <Play className="w-4 h-4 mr-1.5" />
               Start Bot

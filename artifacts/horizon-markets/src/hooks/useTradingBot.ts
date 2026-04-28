@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useUser } from "@clerk/react";
 
 export type TradePair = "XAUUSD" | "BTCUSD";
@@ -22,7 +22,7 @@ export type WithdrawalNetwork =
   | "USDT_ERC20"
   | "SOL";
 
-export type WithdrawalStatus = "PENDING" | "PROCESSING" | "COMPLETED";
+export type WithdrawalStatus = "PENDING" | "APPROVED" | "REJECTED";
 
 export type Withdrawal = {
   id: string;
@@ -31,7 +31,8 @@ export type Withdrawal = {
   network: WithdrawalNetwork;
   status: WithdrawalStatus;
   requestedAt: number;
-  completedAt: number | null;
+  reviewedAt: number | null;
+  reviewerNote: string | null;
   txHash: string | null;
 };
 
@@ -189,7 +190,36 @@ function loadState(key: string): BotState | null {
       lastSettledAt:
         typeof v.lastSettledAt === "number" ? v.lastSettledAt : null,
       withdrawals: Array.isArray(v.withdrawals)
-        ? (v.withdrawals as Withdrawal[])
+        ? (v.withdrawals as (Withdrawal & {
+            completedAt?: number | null;
+            status: string;
+          })[]).map((w) => {
+            const status: WithdrawalStatus =
+              w.status === "APPROVED" ||
+              w.status === "REJECTED" ||
+              w.status === "PENDING"
+                ? (w.status as WithdrawalStatus)
+                : w.status === "COMPLETED" || w.status === "PROCESSING"
+                  ? "APPROVED"
+                  : "PENDING";
+            return {
+              id: w.id,
+              amount: w.amount,
+              address: w.address,
+              network: w.network,
+              status,
+              requestedAt: w.requestedAt,
+              reviewedAt:
+                typeof w.reviewedAt === "number"
+                  ? w.reviewedAt
+                  : typeof w.completedAt === "number"
+                    ? w.completedAt
+                    : null,
+              reviewerNote:
+                typeof w.reviewerNote === "string" ? w.reviewerNote : null,
+              txHash: typeof w.txHash === "string" ? w.txHash : null,
+            };
+          })
         : [],
       deposits: Array.isArray(v.deposits)
         ? (v.deposits as Deposit[]).filter(
@@ -282,7 +312,7 @@ export function useTradingBot() {
   const start = useCallback(
     () =>
       setState((s) =>
-        s.unlocked
+        s.unlocked && s.balance > 0
           ? {
               ...s,
               isRunning: true,
@@ -388,12 +418,19 @@ export function useTradingBot() {
     [],
   );
 
+  const withdrawalInFlight = useRef(false);
   const requestWithdrawal = useCallback(
-    (
+    async (
       amount: number,
       address: string,
       network: WithdrawalNetwork,
-    ): WithdrawResult => {
+    ): Promise<WithdrawResult> => {
+      if (withdrawalInFlight.current) {
+        return {
+          ok: false,
+          error: "A withdrawal is already being submitted. Please wait.",
+        };
+      }
       const cleanAddress = address.trim();
       if (!Number.isFinite(amount) || amount <= 0) {
         return { ok: false, error: "Enter a valid amount" };
@@ -407,40 +444,63 @@ export function useTradingBot() {
       if (cleanAddress.length < 16) {
         return { ok: false, error: "Wallet address looks invalid" };
       }
-      let result: WithdrawResult = {
-        ok: false,
-        error: "Insufficient balance",
-      };
-      setState((s) => {
-        if (amount > s.balance) {
-          result = {
-            ok: false,
-            error: `Insufficient balance. Available: $${s.balance.toFixed(2)}`,
-          };
-          return s;
-        }
-        const withdrawal: Withdrawal = {
-          id: `W${Date.now().toString(36)}${Math.floor(
-            Math.random() * 1e6,
-          ).toString(36)}`,
-          amount: Number(amount.toFixed(2)),
-          address: cleanAddress,
-          network,
-          status: "PENDING",
-          requestedAt: Date.now(),
-          completedAt: null,
-          txHash: null,
-        };
-        result = { ok: true, withdrawal };
+      // Local balance check (admin still has final say)
+      if (amount > state.balance) {
         return {
+          ok: false,
+          error: `Insufficient balance. Available: $${state.balance.toFixed(2)}`,
+        };
+      }
+      withdrawalInFlight.current = true;
+      try {
+        const r = await fetch("/api/withdrawals", {
+          method: "POST",
+          headers: { "content-type": "application/json" },
+          body: JSON.stringify({
+            userId: userKey,
+            userEmail:
+              user?.primaryEmailAddress?.emailAddress ?? null,
+            userName:
+              user?.fullName ||
+              user?.username ||
+              user?.firstName ||
+              null,
+            amount: Number(amount.toFixed(2)),
+            address: cleanAddress,
+            network,
+          }),
+        });
+        const data = (await r.json().catch(() => null)) as {
+          ok?: boolean;
+          withdrawal?: Withdrawal;
+          error?: string;
+        } | null;
+        if (!r.ok || !data?.ok || !data.withdrawal) {
+          return {
+            ok: false,
+            error:
+              data?.error ??
+              "Could not submit withdrawal request. Please try again.",
+          };
+        }
+        const withdrawal = data.withdrawal;
+        setState((s) => ({
           ...s,
           balance: Number((s.balance - amount).toFixed(2)),
           withdrawals: [withdrawal, ...s.withdrawals].slice(0, 50),
+        }));
+        return { ok: true, withdrawal };
+      } catch {
+        return {
+          ok: false,
+          error:
+            "Could not reach the withdrawal service. Check your connection and try again.",
         };
-      });
-      return result;
+      } finally {
+        withdrawalInFlight.current = false;
+      }
     },
-    [],
+    [state.balance, userKey, user],
   );
 
   const createDeposit = useCallback(
@@ -509,6 +569,64 @@ export function useTradingBot() {
     },
     [userKey],
   );
+
+  // Poll server for status updates on pending withdrawals; refund on rejection
+  const pendingWithdrawalKey = state.withdrawals
+    .filter((w) => w.status === "PENDING")
+    .map((w) => w.id)
+    .join(",");
+
+  useEffect(() => {
+    if (!pendingWithdrawalKey || userKey === "anon") return;
+    let cancelled = false;
+
+    const tick = async () => {
+      try {
+        const r = await fetch(
+          `/api/withdrawals?userId=${encodeURIComponent(userKey)}`,
+        );
+        if (!r.ok) return;
+        const data = (await r.json().catch(() => null)) as {
+          ok?: boolean;
+          withdrawals?: Withdrawal[];
+        } | null;
+        if (!data?.ok || !Array.isArray(data.withdrawals)) return;
+        const serverById = new Map(data.withdrawals.map((w) => [w.id, w]));
+        if (cancelled) return;
+        setState((s) => {
+          let refund = 0;
+          let changed = false;
+          const withdrawals = s.withdrawals.map((w) => {
+            const srv = serverById.get(w.id);
+            if (!srv) return w;
+            if (srv.status !== w.status) {
+              changed = true;
+              if (w.status === "PENDING" && srv.status === "REJECTED") {
+                refund += w.amount;
+              }
+              return { ...w, ...srv };
+            }
+            return w;
+          });
+          if (!changed) return s;
+          return {
+            ...s,
+            withdrawals,
+            balance: Number((s.balance + refund).toFixed(2)),
+          };
+        });
+      } catch {
+        // ignore network blips
+      }
+    };
+
+    void tick();
+    const id = setInterval(tick, 8_000);
+    return () => {
+      cancelled = true;
+      clearInterval(id);
+    };
+  }, [pendingWithdrawalKey, userKey]);
 
   // Poll NOWPayments for status of pending deposits and credit balance on confirm
   const pendingKey = state.deposits

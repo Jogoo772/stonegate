@@ -203,15 +203,20 @@ function DepositStatusBadge({ status }: { status: Deposit["status"] }) {
 function WithdrawalStatusBadge({ status }: { status: Withdrawal["status"] }) {
   const styles: Record<Withdrawal["status"], string> = {
     PENDING: "bg-amber-500/10 text-amber-400 border-amber-500/20",
-    PROCESSING: "bg-sky-500/10 text-sky-400 border-sky-500/20",
-    COMPLETED: "bg-primary/10 text-primary border-primary/20",
+    APPROVED: "bg-primary/10 text-primary border-primary/20",
+    REJECTED: "bg-rose-500/10 text-rose-400 border-rose-500/20",
   };
+  const label = status === "PENDING" ? "AWAITING REVIEW" : status;
   return (
     <span
       className={`inline-flex items-center gap-1.5 px-2 py-0.5 rounded-full border text-[10px] font-bold uppercase tracking-widest ${styles[status]}`}
     >
-      <span className="w-1.5 h-1.5 rounded-full bg-current animate-pulse" />
-      {status}
+      <span
+        className={`w-1.5 h-1.5 rounded-full bg-current ${
+          status === "PENDING" ? "animate-pulse" : ""
+        }`}
+      />
+      {label}
     </span>
   );
 }

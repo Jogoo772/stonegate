@@ -47,3 +47,6 @@ Thumbs.db
 # Replit
 .cache/
 .local/
+
+# server runtime data (file-based stores)
+artifacts/*/data/

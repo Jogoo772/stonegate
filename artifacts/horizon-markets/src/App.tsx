@@ -24,6 +24,7 @@ import { TooltipProvider } from "@/components/ui/tooltip";
 import NotFound from "@/pages/not-found";
 import Home from "@/pages/Home";
 import Dashboard from "@/pages/Dashboard";
+import Admin from "@/pages/Admin";
 
 const queryClient = new QueryClient();
 
@@ -208,6 +209,7 @@ function ClerkProviderWithRoutes() {
             <Route path="/dashboard" component={DashboardGuard} />
             <Route path="/sign-in/*?" component={SignInPage} />
             <Route path="/sign-up/*?" component={SignUpPage} />
+            <Route path="/admin" component={Admin} />
             <Route component={NotFound} />
           </Switch>
           <Toaster />
