@@ -13,12 +13,10 @@ import {
   Flame,
   Wallet,
   X,
-  Lock,
   KeyRound,
-  ShieldCheck,
   AlertCircle,
   LogOut,
-  UploadCloud,
+  Activity,
 } from "lucide-react";
 import {
   useTradingBot,
@@ -452,57 +450,40 @@ function BotLockScreen({
   };
 
   return (
-    <Card className="bg-[#0c0c0c] border-white/5 p-6 sm:p-8 relative overflow-hidden">
-      <div className="absolute inset-0 bg-gradient-to-br from-primary/5 via-transparent to-amber-500/5 pointer-events-none" />
-      <div className="absolute -top-24 -right-24 w-72 h-72 bg-primary/10 rounded-full blur-3xl pointer-events-none" />
-      <div className="absolute -bottom-24 -left-24 w-72 h-72 bg-amber-500/5 rounded-full blur-3xl pointer-events-none" />
-
-      <div className="relative max-w-md mx-auto text-center py-6">
-        <motion.div
-          initial={{ scale: 0.8, opacity: 0 }}
-          animate={{ scale: 1, opacity: 1 }}
-          transition={{ type: "spring", stiffness: 220, damping: 18 }}
-          className="mx-auto w-16 h-16 rounded-2xl bg-primary/15 text-primary flex items-center justify-center border border-primary/30 mb-5 shadow-[0_0_30px_rgba(255,179,0,0.25)]"
-        >
-          <UploadCloud className="w-7 h-7" />
-        </motion.div>
-
-        <span className="inline-flex items-center gap-1.5 text-[10px] font-bold tracking-widest px-2.5 py-1 rounded-full uppercase bg-white/5 text-muted-foreground border border-white/10 mb-3">
-          <ShieldCheck className="w-3 h-3" />
-          <Lock className="w-3 h-3" />
-          Bot Not Uploaded
-        </span>
-
-        <h2 className="text-2xl sm:text-3xl font-black tracking-tight mb-2">
-          Upload HedgeGate AlphaBot
+    <Card className="bg-[#0c0c0c] border-white/5 p-6 sm:p-7 relative overflow-hidden">
+      <div className="flex items-center gap-2.5 mb-5">
+        <div className="w-9 h-9 rounded-lg bg-primary/15 text-primary flex items-center justify-center border border-primary/25">
+          <KeyRound className="w-[18px] h-[18px]" />
+        </div>
+        <h2 className="text-lg sm:text-xl font-extrabold tracking-wider uppercase text-foreground">
+          Activate with Passkey
         </h2>
-        <p className="text-sm text-muted-foreground mb-6 leading-relaxed">
-          The AlphaBot must be uploaded to your account using a pass key issued
-          by the HedgeGate administrator before it can begin trading. Contact
-          your administrator to receive your key.
+      </div>
+
+      <div className="border-t border-white/5 pt-5">
+        <p className="text-[15px] text-muted-foreground text-center leading-relaxed mb-5">
+          Already have a trading bot passkey?
+          <br />
+          Enter it below to activate your bot instantly.
         </p>
 
-        <form onSubmit={handleSubmit} className="text-left space-y-3">
-          <label
-            htmlFor="bot-pass-key"
-            className="text-[10px] uppercase tracking-widest text-muted-foreground font-bold flex items-center gap-1.5"
-          >
-            <KeyRound className="w-3 h-3" />
-            Bot pass key
-          </label>
-          <Input
-            id="bot-pass-key"
-            type="text"
-            autoComplete="off"
-            spellCheck={false}
-            placeholder="Enter your administrator-issued pass key"
-            value={key}
-            onChange={(e) => {
-              setKey(e.target.value);
-              if (error) setError(null);
-            }}
-            className="bg-white/5 border-white/10 font-mono tracking-widest text-center uppercase h-12"
-          />
+        <form onSubmit={handleSubmit} className="space-y-3">
+          <div className="relative">
+            <KeyRound className="w-4 h-4 absolute left-3.5 top-1/2 -translate-y-1/2 text-muted-foreground/70 pointer-events-none" />
+            <Input
+              id="bot-pass-key"
+              type="text"
+              autoComplete="off"
+              spellCheck={false}
+              placeholder="Enter your trading bot passkey"
+              value={key}
+              onChange={(e) => {
+                setKey(e.target.value);
+                if (error) setError(null);
+              }}
+              className="bg-white/[0.04] border-white/10 h-12 pl-10 text-[15px] placeholder:text-muted-foreground/60"
+            />
+          </div>
 
           {error ? (
             <div className="flex items-start gap-2 text-sm text-rose-400 bg-rose-500/5 border border-rose-500/20 rounded-md p-2.5">
@@ -514,16 +495,16 @@ function BotLockScreen({
           <Button
             type="submit"
             disabled={submitting || !key.trim()}
-            className="w-full bg-primary text-primary-foreground hover:bg-primary/90 font-bold h-11 shadow-[0_0_20px_rgba(255,179,0,0.35)]"
+            className="w-full bg-primary text-primary-foreground hover:bg-primary/90 font-bold h-12 text-[15px] shadow-[0_0_20px_rgba(255,179,0,0.3)] disabled:opacity-50 disabled:shadow-none"
           >
-            <UploadCloud className="w-4 h-4 mr-2" />
-            {submitting ? "Verifying pass key…" : "Upload Bot"}
+            <Activity className="w-[18px] h-[18px] mr-2" />
+            {submitting ? "Verifying passkey…" : "Submit Passkey"}
           </Button>
         </form>
 
-        <p className="text-[11px] text-muted-foreground/80 mt-5 leading-relaxed">
-          Don't have a key? Pass keys are issued exclusively by the HedgeGate
-          administrator and authorize the bot upload for your account only.
+        <p className="text-[13px] text-muted-foreground/80 mt-5 text-center leading-relaxed px-2">
+          Passkeys are provided by authorized bot developers. Contact support if
+          you need assistance.
         </p>
       </div>
     </Card>
