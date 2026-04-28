@@ -24,7 +24,7 @@ export function Navbar() {
             H
           </div>
           <span className="font-bold text-xl tracking-tight">
-            Horizon<span className="text-primary">.</span>
+            HedgeGate<span className="text-primary">.</span>
           </span>
         </Link>
 

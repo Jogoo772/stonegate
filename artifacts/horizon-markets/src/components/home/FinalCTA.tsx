@@ -25,7 +25,7 @@ export function FinalCTA() {
             Ready to Start Trading?
           </h2>
           <p className="text-xl text-muted-foreground mb-10">
-            Join thousands of professional traders on Horizon Markets today. Setup takes less than 2 minutes.
+            Join thousands of professional traders on HedgeGate today. Setup takes less than 2 minutes.
           </p>
           <div className="flex flex-col sm:flex-row items-center justify-center gap-4">
             <Link href="/sign-up" className="w-full sm:w-auto">

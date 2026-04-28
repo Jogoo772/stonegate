@@ -1,6 +1,6 @@
 kind = "web"
 previewPath = "/"
-title = "Horizon Markets"
+title = "HedgeGate"
 version = "1.0.0"
 id = "artifacts/horizon-markets"
 router = "path"
