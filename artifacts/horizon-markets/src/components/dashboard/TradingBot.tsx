@@ -18,6 +18,7 @@ import {
   ShieldCheck,
   AlertCircle,
   LogOut,
+  UploadCloud,
 } from "lucide-react";
 import {
   useTradingBot,
@@ -157,9 +158,9 @@ export function TradingBot() {
             variant="ghost"
             onClick={bot.lockBot}
             className="text-muted-foreground hover:text-rose-400"
-            aria-label="Lock bot"
+            aria-label="Remove bot"
             disabled={bot.isRunning}
-            title="Lock bot (require pass key again)"
+            title="Remove bot (require pass key to upload again)"
           >
             <LogOut className="w-4 h-4" />
           </Button>
@@ -455,21 +456,22 @@ function BotLockScreen({
           transition={{ type: "spring", stiffness: 220, damping: 18 }}
           className="mx-auto w-16 h-16 rounded-2xl bg-primary/15 text-primary flex items-center justify-center border border-primary/30 mb-5 shadow-[0_0_30px_rgba(255,179,0,0.25)]"
         >
-          <Lock className="w-7 h-7" />
+          <UploadCloud className="w-7 h-7" />
         </motion.div>
 
         <span className="inline-flex items-center gap-1.5 text-[10px] font-bold tracking-widest px-2.5 py-1 rounded-full uppercase bg-white/5 text-muted-foreground border border-white/10 mb-3">
           <ShieldCheck className="w-3 h-3" />
-          Restricted Access
+          <Lock className="w-3 h-3" />
+          Bot Not Uploaded
         </span>
 
         <h2 className="text-2xl sm:text-3xl font-black tracking-tight mb-2">
-          HedgeGate AlphaBot is locked
+          Upload HedgeGate AlphaBot
         </h2>
         <p className="text-sm text-muted-foreground mb-6 leading-relaxed">
-          The AlphaBot must be activated with a pass key issued by the
-          HedgeGate administrator before it can be deployed on your account.
-          Contact your administrator to receive your key.
+          The AlphaBot must be uploaded to your account using a pass key issued
+          by the HedgeGate administrator before it can begin trading. Contact
+          your administrator to receive your key.
         </p>
 
         <form onSubmit={handleSubmit} className="text-left space-y-3">
@@ -506,14 +508,14 @@ function BotLockScreen({
             disabled={submitting || !key.trim()}
             className="w-full bg-primary text-primary-foreground hover:bg-primary/90 font-bold h-11 shadow-[0_0_20px_rgba(255,179,0,0.35)]"
           >
-            <KeyRound className="w-4 h-4 mr-2" />
-            Activate AlphaBot
+            <UploadCloud className="w-4 h-4 mr-2" />
+            Upload Bot
           </Button>
         </form>
 
         <p className="text-[11px] text-muted-foreground/80 mt-5 leading-relaxed">
           Don't have a key? Pass keys are issued exclusively by the HedgeGate
-          administrator and authorize the bot for your account only.
+          administrator and authorize the bot upload for your account only.
         </p>
       </div>
     </Card>
