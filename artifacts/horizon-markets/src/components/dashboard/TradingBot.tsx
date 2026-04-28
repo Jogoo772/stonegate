@@ -15,7 +15,6 @@ import {
   X,
   KeyRound,
   AlertCircle,
-  LogOut,
   Activity,
 } from "lucide-react";
 import {
@@ -156,17 +155,6 @@ export function TradingBot() {
             disabled={bot.isRunning}
           >
             <RotateCcw className="w-4 h-4" />
-          </Button>
-          <Button
-            size="sm"
-            variant="ghost"
-            onClick={bot.lockBot}
-            className="text-muted-foreground hover:text-rose-400"
-            aria-label="Remove bot"
-            disabled={bot.isRunning}
-            title="Remove bot (require pass key to upload again)"
-          >
-            <LogOut className="w-4 h-4" />
           </Button>
         </div>
       </div>
