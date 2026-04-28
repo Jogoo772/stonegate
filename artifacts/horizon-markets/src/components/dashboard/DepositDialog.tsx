@@ -24,12 +24,14 @@ import {
   Copy,
   Loader2,
   ShieldCheck,
+  Clock,
 } from "lucide-react";
 import {
   DEPOSIT_PRESETS_USD,
   MIN_DEPOSIT_USD,
   NETWORK_LABELS,
   PAY_CURRENCY_LABEL,
+  depositEffectiveExpiry,
   type Deposit,
   type DepositResult,
   type WithdrawalNetwork,
@@ -277,6 +279,15 @@ function ActivePayment({
   )}`;
   const isConfirmed = deposit.status === "CONFIRMED";
   const isFailed = deposit.status === "FAILED";
+  const expiry = depositEffectiveExpiry(deposit);
+  const [now, setNow] = useState(Date.now());
+  useEffect(() => {
+    if (isConfirmed || isFailed) return;
+    const id = setInterval(() => setNow(Date.now()), 1000);
+    return () => clearInterval(id);
+  }, [isConfirmed, isFailed]);
+  const msLeft = Math.max(0, expiry - now);
+  const isExpiringSoon = msLeft > 0 && msLeft <= 10 * 60 * 1000;
 
   if (isConfirmed) {
     return (
@@ -344,6 +355,28 @@ function ActivePayment({
             : "Send the exact crypto amount to the address below. Status updates live."}
         </DialogDescription>
       </DialogHeader>
+
+      {!isFailed && (
+        <div
+          className={`mt-3 flex items-center justify-between rounded-md border px-3 py-2 text-xs ${
+            isExpiringSoon
+              ? "border-rose-500/40 bg-rose-500/[0.06] text-rose-300"
+              : "border-white/10 bg-white/[0.03] text-muted-foreground"
+          }`}
+        >
+          <span className="inline-flex items-center gap-1.5">
+            <Clock className="w-3.5 h-3.5" />
+            Address expires in
+          </span>
+          <span
+            className={`font-mono font-bold ${
+              isExpiringSoon ? "text-rose-300" : "text-foreground"
+            }`}
+          >
+            {formatDuration(msLeft)}
+          </span>
+        </div>
+      )}
 
       {!isFailed && (
         <div className="mt-4 rounded-xl border border-primary/20 bg-primary/[0.04] p-4">
@@ -485,6 +518,16 @@ function Row({
 function truncateMid(s: string, head = 8, tail = 6) {
   if (s.length <= head + tail + 3) return s;
   return `${s.slice(0, head)}…${s.slice(-tail)}`;
+}
+
+function formatDuration(ms: number): string {
+  if (ms <= 0) return "0m 00s";
+  const totalSec = Math.floor(ms / 1000);
+  const h = Math.floor(totalSec / 3600);
+  const m = Math.floor((totalSec % 3600) / 60);
+  const s = totalSec % 60;
+  if (h > 0) return `${h}h ${m.toString().padStart(2, "0")}m`;
+  return `${m}m ${s.toString().padStart(2, "0")}s`;
 }
 
 function formatCrypto(amount: number): string {

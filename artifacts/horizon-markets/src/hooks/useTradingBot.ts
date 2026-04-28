@@ -49,9 +49,16 @@ export type Deposit = {
   status: DepositStatus;
   rawStatus: string;
   createdAt: number;
+  expiresAt: number | null;
   confirmedAt: number | null;
   txHash: string | null;
 };
+
+export const DEPOSIT_EXPIRY_MS = 2 * 60 * 60 * 1000; // 2 hours
+
+export function depositEffectiveExpiry(d: Pick<Deposit, "createdAt" | "expiresAt">): number {
+  return d.expiresAt ?? d.createdAt + DEPOSIT_EXPIRY_MS;
+}
 
 export const NETWORK_TO_PAY_CURRENCY: Record<WithdrawalNetwork, string> = {
   BTC: "btc",
@@ -585,6 +592,7 @@ export function useTradingBot() {
           status: "PENDING",
           rawStatus: data.paymentStatus ?? "waiting",
           createdAt: now,
+          expiresAt: now + DEPOSIT_EXPIRY_MS,
           confirmedAt: null,
           txHash: null,
         };
@@ -658,9 +666,37 @@ export function useTradingBot() {
     };
   }, [pendingWithdrawalKey, userKey]);
 
-  // Poll NOWPayments for status of pending deposits and credit balance on confirm
+  // Auto-expire pending deposits after 2 hours from address generation.
+  const hasPendingDeposits = state.deposits.some((d) => d.status === "PENDING");
+  useEffect(() => {
+    if (!hasPendingDeposits) return;
+    const sweep = () => {
+      setState((s) => {
+        const now = Date.now();
+        let changed = false;
+        const deposits = s.deposits.map((d) => {
+          if (d.status !== "PENDING") return d;
+          const exp = depositEffectiveExpiry(d);
+          if (now >= exp) {
+            changed = true;
+            return { ...d, status: "FAILED" as DepositStatus, rawStatus: "expired" };
+          }
+          return d;
+        });
+        if (!changed) return s;
+        return { ...s, deposits };
+      });
+    };
+    sweep();
+    const id = setInterval(sweep, 30_000);
+    return () => clearInterval(id);
+  }, [hasPendingDeposits]);
+
+  // Poll NOWPayments for status of pending (and not yet expired) deposits
   const pendingKey = state.deposits
-    .filter((d) => d.status === "PENDING")
+    .filter(
+      (d) => d.status === "PENDING" && Date.now() < depositEffectiveExpiry(d),
+    )
     .map((d) => d.paymentId)
     .join(",");
 
