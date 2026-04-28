@@ -423,18 +423,20 @@ function Tag({ children }: { children: React.ReactNode }) {
 function BotLockScreen({
   onUnlock,
 }: {
-  onUnlock: (key: string) => { ok: true } | { ok: false; error: string };
+  onUnlock: (
+    key: string,
+  ) => Promise<{ ok: true } | { ok: false; error: string }>;
 }) {
   const [key, setKey] = useState("");
   const [error, setError] = useState<string | null>(null);
   const [submitting, setSubmitting] = useState(false);
 
-  const handleSubmit = (e: React.FormEvent) => {
+  const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     if (submitting) return;
     setError(null);
     setSubmitting(true);
-    const res = onUnlock(key);
+    const res = await onUnlock(key);
     setSubmitting(false);
     if (!res.ok) {
       setError(res.error);
@@ -509,7 +511,7 @@ function BotLockScreen({
             className="w-full bg-primary text-primary-foreground hover:bg-primary/90 font-bold h-11 shadow-[0_0_20px_rgba(255,179,0,0.35)]"
           >
             <UploadCloud className="w-4 h-4 mr-2" />
-            Upload Bot
+            {submitting ? "Verifying pass key…" : "Upload Bot"}
           </Button>
         </form>
 

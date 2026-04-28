@@ -72,8 +72,6 @@ export const MIN_WITHDRAWAL_USD = 10;
 export const MIN_DEPOSIT_USD = 50;
 export const DEPOSIT_PRESETS_USD = [50, 100, 200, 300, 500] as const;
 
-export const BOT_UNLOCK_KEY = "AT6768665G";
-
 export const NETWORK_LABELS: Record<WithdrawalNetwork, string> = {
   BTC: "Bitcoin (BTC)",
   ETH: "Ethereum (ERC-20)",
@@ -296,20 +294,37 @@ export function useTradingBot() {
   );
 
   const unlockBot = useCallback(
-    (
+    async (
       key: string,
-    ): { ok: true } | { ok: false; error: string } => {
+    ): Promise<{ ok: true } | { ok: false; error: string }> => {
       const trimmed = key.trim();
       if (!trimmed) return { ok: false, error: "Enter the bot pass key." };
-      if (trimmed !== BOT_UNLOCK_KEY) {
+      try {
+        const res = await fetch("/api/bot/upload", {
+          method: "POST",
+          headers: { "content-type": "application/json" },
+          body: JSON.stringify({ key: trimmed }),
+        });
+        const data = (await res.json().catch(() => null)) as
+          | { ok?: boolean; error?: string }
+          | null;
+        if (!res.ok || !data?.ok) {
+          return {
+            ok: false,
+            error:
+              data?.error ??
+              "Bot upload failed. Please try again or contact the administrator.",
+          };
+        }
+        setState((s) => ({ ...s, unlocked: true }));
+        return { ok: true };
+      } catch {
         return {
           ok: false,
           error:
-            "Invalid pass key. Contact the HedgeGate administrator to obtain a valid key.",
+            "Could not reach the upload service. Check your connection and try again.",
         };
       }
-      setState((s) => ({ ...s, unlocked: true }));
-      return { ok: true };
     },
     [],
   );
