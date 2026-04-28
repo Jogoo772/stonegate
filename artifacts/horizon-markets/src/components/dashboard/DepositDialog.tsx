@@ -26,6 +26,7 @@ import {
   ShieldCheck,
 } from "lucide-react";
 import {
+  DEPOSIT_PRESETS_USD,
   MIN_DEPOSIT_USD,
   NETWORK_LABELS,
   PAY_CURRENCY_LABEL,
@@ -161,16 +162,43 @@ export function DepositDialog({
                 </div>
 
                 <div className="space-y-2">
-                  <Label htmlFor="dep-amount" className="text-sm">
-                    Deposit amount (USD)
-                  </Label>
+                  <div className="flex items-center justify-between">
+                    <Label htmlFor="dep-amount" className="text-sm">
+                      Deposit amount (USD)
+                    </Label>
+                    <span className="text-[10px] uppercase tracking-widest text-muted-foreground">
+                      Min ${MIN_DEPOSIT_USD}
+                    </span>
+                  </div>
+                  <div className="grid grid-cols-5 gap-2">
+                    {DEPOSIT_PRESETS_USD.map((preset) => {
+                      const active = Number(amount) === preset;
+                      return (
+                        <button
+                          key={preset}
+                          type="button"
+                          onClick={() => {
+                            setAmount(String(preset));
+                            setError(null);
+                          }}
+                          className={`py-2 rounded-md border text-sm font-bold font-mono transition-all ${
+                            active
+                              ? "bg-primary text-primary-foreground border-primary shadow-[0_0_12px_rgba(255,179,0,0.35)]"
+                              : "bg-white/[0.03] text-foreground border-white/10 hover:border-primary/40 hover:bg-white/[0.06]"
+                          }`}
+                        >
+                          ${preset}
+                        </button>
+                      );
+                    })}
+                  </div>
                   <Input
                     id="dep-amount"
                     type="number"
                     inputMode="decimal"
                     step="0.01"
                     min={MIN_DEPOSIT_USD}
-                    placeholder={`${MIN_DEPOSIT_USD.toFixed(2)} minimum`}
+                    placeholder={`Or enter a custom amount ($${MIN_DEPOSIT_USD} minimum)`}
                     value={amount}
                     onChange={(e) => setAmount(e.target.value)}
                     className="bg-white/5 border-white/10 font-mono"

@@ -69,7 +69,8 @@ export const PAY_CURRENCY_LABEL: Record<string, string> = {
 };
 
 export const MIN_WITHDRAWAL_USD = 10;
-export const MIN_DEPOSIT_USD = 10;
+export const MIN_DEPOSIT_USD = 50;
+export const DEPOSIT_PRESETS_USD = [50, 100, 200, 300, 500] as const;
 
 export const NETWORK_LABELS: Record<WithdrawalNetwork, string> = {
   BTC: "Bitcoin (BTC)",
