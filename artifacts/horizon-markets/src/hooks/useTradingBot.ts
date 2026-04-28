@@ -87,9 +87,26 @@ export type DepositResult =
   | { ok: true; deposit: Deposit }
   | { ok: false; error: string };
 
+export type BotTimeframe = "1m" | "5m" | "15m" | "30m" | "1h" | "4h";
+
+export const TIMEFRAME_OPTIONS: { value: BotTimeframe; label: string; ms: number }[] = [
+  { value: "1m", label: "1 min", ms: 60_000 },
+  { value: "5m", label: "5 min", ms: 5 * 60_000 },
+  { value: "15m", label: "15 min", ms: 15 * 60_000 },
+  { value: "30m", label: "30 min", ms: 30 * 60_000 },
+  { value: "1h", label: "1 hour", ms: 60 * 60_000 },
+  { value: "4h", label: "4 hours", ms: 4 * 60 * 60_000 },
+];
+
+const TIMEFRAME_MS: Record<BotTimeframe, number> = TIMEFRAME_OPTIONS.reduce(
+  (acc, t) => ({ ...acc, [t.value]: t.ms }),
+  {} as Record<BotTimeframe, number>,
+);
+
 type BotState = {
   isRunning: boolean;
   pair: BotPair;
+  timeframe: BotTimeframe;
   trades: BotTrade[];
   consecutiveWins: number;
   startedAt: number | null;
@@ -102,8 +119,6 @@ type BotState = {
 };
 
 const MAX_TRADES = 100;
-const TRADE_INTERVAL_MIN_MS = 6_000;
-const TRADE_INTERVAL_MAX_MS = 12_000;
 
 const PROFIT_MIN = 50;
 const PROFIT_MAX = 60;
@@ -157,6 +172,10 @@ function loadState(key: string): BotState | null {
     return {
       isRunning: false,
       pair: v.pair === "XAUUSD" || v.pair === "BTCUSD" ? v.pair : "BOTH",
+      timeframe:
+        v.timeframe && v.timeframe in TIMEFRAME_MS
+          ? (v.timeframe as BotTimeframe)
+          : "1m",
       trades: Array.isArray(v.trades) ? (v.trades as BotTrade[]) : [],
       consecutiveWins:
         typeof v.consecutiveWins === "number" ? v.consecutiveWins : 0,
@@ -203,6 +222,7 @@ export function useTradingBot() {
       loadState(storageKey) ?? {
         isRunning: false,
         pair: "BOTH",
+        timeframe: "1m",
         trades: [],
         consecutiveWins: 0,
         startedAt: null,
@@ -223,8 +243,11 @@ export function useTradingBot() {
     if (!state.isRunning) return;
     let timer: ReturnType<typeof setTimeout> | null = null;
 
+    const baseDelay = TIMEFRAME_MS[state.timeframe];
+
     const schedule = () => {
-      const delay = rand(TRADE_INTERVAL_MIN_MS, TRADE_INTERVAL_MAX_MS);
+      const jitter = baseDelay * 0.1;
+      const delay = baseDelay + rand(-jitter, jitter);
       timer = setTimeout(() => {
         setState((cur) => {
           const pair = pickPair(cur.pair);
@@ -250,7 +273,7 @@ export function useTradingBot() {
     return () => {
       if (timer) clearTimeout(timer);
     };
-  }, [state.isRunning]);
+  }, [state.isRunning, state.timeframe]);
 
   const start = useCallback(
     () =>
@@ -291,11 +314,17 @@ export function useTradingBot() {
     [],
   );
 
+  const setTimeframe = useCallback(
+    (timeframe: BotTimeframe) => setState((s) => ({ ...s, timeframe })),
+    [],
+  );
+
   const reset = useCallback(
     () =>
       setState({
         isRunning: false,
         pair: "BOTH",
+        timeframe: "1m",
         trades: [],
         consecutiveWins: 0,
         startedAt: null,
@@ -534,6 +563,8 @@ export function useTradingBot() {
   return {
     isRunning: state.isRunning,
     pair: state.pair,
+    timeframe: state.timeframe,
+    timeframeMs: TIMEFRAME_MS[state.timeframe],
     trades: state.trades,
     consecutiveWins: state.consecutiveWins,
     startedAt: state.startedAt,
@@ -546,6 +577,7 @@ export function useTradingBot() {
     start,
     stop,
     setPair,
+    setTimeframe,
     reset,
     clearSettledNotice,
     requestWithdrawal,

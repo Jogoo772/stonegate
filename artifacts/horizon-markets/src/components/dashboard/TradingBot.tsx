@@ -12,13 +12,29 @@ import {
   Wallet,
   X,
 } from "lucide-react";
-import { useTradingBot, type BotPair } from "@/hooks/useTradingBot";
+import {
+  useTradingBot,
+  type BotPair,
+  TIMEFRAME_OPTIONS,
+} from "@/hooks/useTradingBot";
 
 const PAIR_OPTIONS: { value: BotPair; label: string }[] = [
   { value: "BOTH", label: "Both" },
   { value: "XAUUSD", label: "XAUUSD" },
   { value: "BTCUSD", label: "BTCUSD" },
 ];
+
+function formatNextTradeWindow(ms: number) {
+  if (ms < 60_000) return `~${Math.round(ms / 1000)}s`;
+  const minutes = ms / 60_000;
+  if (minutes < 60) {
+    return minutes >= 1 && minutes % 1 === 0
+      ? `~${minutes} min`
+      : `~${minutes.toFixed(1)} min`;
+  }
+  const hours = minutes / 60;
+  return hours % 1 === 0 ? `~${hours} hr` : `~${hours.toFixed(1)} hr`;
+}
 
 function formatPrice(pair: string, value: number) {
   if (pair === "BTCUSD")
@@ -78,7 +94,7 @@ export function TradingBot() {
           </div>
         </div>
 
-        <div className="flex items-center gap-2">
+        <div className="flex flex-wrap items-center gap-2">
           <div className="flex items-center bg-white/5 border border-white/10 rounded-lg p-1">
             {PAIR_OPTIONS.map((p) => (
               <button
@@ -156,11 +172,52 @@ export function TradingBot() {
         />
       </div>
 
+      {/* Timeframe selector */}
+      <div className="mb-5 relative">
+        <div className="flex items-center justify-between mb-2 gap-3 flex-wrap">
+          <div>
+            <div className="text-[10px] uppercase tracking-widest text-muted-foreground font-bold">
+              Timeframe
+            </div>
+            <div className="text-xs text-muted-foreground mt-0.5">
+              Bot executes one trade per candle close
+              {bot.isRunning ? " · Stop bot to change" : ""}
+            </div>
+          </div>
+          <div className="text-[10px] uppercase tracking-widest text-primary font-bold">
+            Active: {bot.timeframe}
+          </div>
+        </div>
+        <div className="grid grid-cols-3 sm:grid-cols-6 gap-2">
+          {TIMEFRAME_OPTIONS.map((t) => {
+            const active = bot.timeframe === t.value;
+            return (
+              <button
+                key={t.value}
+                onClick={() => bot.setTimeframe(t.value)}
+                disabled={bot.isRunning}
+                className={`px-2 py-2 text-xs font-bold rounded-md border transition-all ${
+                  active
+                    ? "bg-primary text-primary-foreground border-primary shadow-[0_0_12px_rgba(255,179,0,0.35)]"
+                    : "bg-white/[0.03] text-muted-foreground border-white/10 hover:border-white/25 hover:text-foreground"
+                } ${bot.isRunning ? "opacity-50 cursor-not-allowed" : ""}`}
+              >
+                <div className="font-mono text-sm">{t.value}</div>
+                <div className="text-[9px] uppercase tracking-wide opacity-70 mt-0.5">
+                  {t.label}
+                </div>
+              </button>
+            );
+          })}
+        </div>
+      </div>
+
       {/* Strategy summary */}
       <div className="flex flex-wrap gap-2 mb-5 text-xs">
         <Tag>TP: $50 – $60</Tag>
         <Tag>SL: $5 – $15</Tag>
         <Tag>Pairs: XAUUSD · BTCUSD</Tag>
+        <Tag>Timeframe: {bot.timeframe}</Tag>
       </div>
 
       {/* Settlement notice */}
@@ -210,7 +267,7 @@ export function TradingBot() {
           </h3>
           {bot.isRunning ? (
             <span className="text-xs text-muted-foreground">
-              Next trade in 6–12s
+              Next trade in {formatNextTradeWindow(bot.timeframeMs)}
             </span>
           ) : (
             <span className="text-xs text-muted-foreground">
