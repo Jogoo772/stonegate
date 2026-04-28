@@ -35,18 +35,37 @@ export type Withdrawal = {
   txHash: string | null;
 };
 
-export type DepositStatus = "PENDING" | "CONFIRMED";
+export type DepositStatus = "PENDING" | "CONFIRMED" | "FAILED";
 
 export type Deposit = {
   id: string;
+  paymentId: string;
   amount: number;
   address: string;
   network: WithdrawalNetwork;
+  payAmount: number;
+  payCurrency: string;
   status: DepositStatus;
+  rawStatus: string;
   createdAt: number;
-  confirmAt: number;
   confirmedAt: number | null;
-  txHash: string;
+  txHash: string | null;
+};
+
+export const NETWORK_TO_PAY_CURRENCY: Record<WithdrawalNetwork, string> = {
+  BTC: "btc",
+  ETH: "eth",
+  USDT_TRC20: "usdttrc20",
+  USDT_ERC20: "usdterc20",
+  SOL: "sol",
+};
+
+export const PAY_CURRENCY_LABEL: Record<string, string> = {
+  btc: "BTC",
+  eth: "ETH",
+  sol: "SOL",
+  usdttrc20: "USDT",
+  usdterc20: "USDT",
 };
 
 export const MIN_WITHDRAWAL_USD = 10;
@@ -96,66 +115,6 @@ const LOSS_PROBABILITY_AFTER_STREAK = 0.5;
 
 function rand(min: number, max: number) {
   return min + Math.random() * (max - min);
-}
-
-const BASE58 =
-  "123456789ABCDEFGHJKLMNPQRSTUVWXYZabcdefghijkmnopqrstuvwxyz";
-const HEX = "0123456789abcdef";
-
-function hashSeed(seed: string): number {
-  let h = 2166136261 >>> 0;
-  for (let i = 0; i < seed.length; i++) {
-    h ^= seed.charCodeAt(i);
-    h = Math.imul(h, 16777619) >>> 0;
-  }
-  return h;
-}
-
-function seededRandom(seed: string) {
-  let state = hashSeed(seed) || 1;
-  return () => {
-    state ^= state << 13;
-    state ^= state >>> 17;
-    state ^= state << 5;
-    state >>>= 0;
-    return state / 0xffffffff;
-  };
-}
-
-function randomString(charset: string, length: number, rng: () => number) {
-  let out = "";
-  for (let i = 0; i < length; i++) {
-    out += charset[Math.floor(rng() * charset.length)];
-  }
-  return out;
-}
-
-function generateAddress(
-  network: "BTC" | "ETH" | "USDT_TRC20" | "USDT_ERC20" | "SOL",
-  userKey: string,
-): string {
-  const rng = seededRandom(`${userKey}:${network}`);
-  switch (network) {
-    case "BTC":
-      return `bc1q${randomString(BASE58.toLowerCase(), 38, rng)}`;
-    case "ETH":
-    case "USDT_ERC20":
-      return `0x${randomString(HEX, 40, rng)}`;
-    case "USDT_TRC20":
-      return `T${randomString(BASE58, 33, rng)}`;
-    case "SOL":
-      return randomString(BASE58, 44, rng);
-  }
-}
-
-function generateTxHash(
-  network: "BTC" | "ETH" | "USDT_TRC20" | "USDT_ERC20" | "SOL",
-): string {
-  const rng = seededRandom(`tx:${Date.now()}:${Math.random()}`);
-  if (network === "ETH" || network === "USDT_ERC20") {
-    return `0x${randomString(HEX, 64, rng)}`;
-  }
-  return randomString(HEX, 64, rng);
 }
 
 function pickPair(p: BotPair): TradePair {
@@ -210,7 +169,11 @@ function loadState(key: string): BotState | null {
       withdrawals: Array.isArray(v.withdrawals)
         ? (v.withdrawals as Withdrawal[])
         : [],
-      deposits: Array.isArray(v.deposits) ? (v.deposits as Deposit[]) : [],
+      deposits: Array.isArray(v.deposits)
+        ? (v.deposits as Deposit[]).filter(
+            (d) => typeof (d as Deposit).paymentId === "string",
+          )
+        : [],
       depositAddresses:
         v.depositAddresses && typeof v.depositAddresses === "object"
           ? (v.depositAddresses as Partial<Record<WithdrawalNetwork, string>>)
@@ -401,26 +364,11 @@ export function useTradingBot() {
     [],
   );
 
-  const getDepositAddress = useCallback(
-    (network: WithdrawalNetwork): string => {
-      const existing = state.depositAddresses[network];
-      if (existing) return existing;
-      const fresh = generateAddress(network, userKey);
-      setState((s) =>
-        s.depositAddresses[network]
-          ? s
-          : {
-              ...s,
-              depositAddresses: { ...s.depositAddresses, [network]: fresh },
-            },
-      );
-      return fresh;
-    },
-    [state.depositAddresses, userKey],
-  );
-
-  const simulateDeposit = useCallback(
-    (amount: number, network: WithdrawalNetwork): DepositResult => {
+  const createDeposit = useCallback(
+    async (
+      amount: number,
+      network: WithdrawalNetwork,
+    ): Promise<DepositResult> => {
       if (!Number.isFinite(amount) || amount <= 0) {
         return { ok: false, error: "Enter a valid amount" };
       }
@@ -430,57 +378,143 @@ export function useTradingBot() {
           error: `Minimum deposit is $${MIN_DEPOSIT_USD.toFixed(2)}`,
         };
       }
-      const address =
-        state.depositAddresses[network] ?? generateAddress(network, userKey);
-      const now = Date.now();
-      const deposit: Deposit = {
-        id: `D${now.toString(36)}${Math.floor(Math.random() * 1e6).toString(36)}`,
-        amount: Number(amount.toFixed(2)),
-        address,
-        network,
-        status: "PENDING",
-        createdAt: now,
-        confirmAt: now + Math.floor(rand(4_000, 9_000)),
-        confirmedAt: null,
-        txHash: generateTxHash(network),
-      };
-      setState((s) => ({
-        ...s,
-        deposits: [deposit, ...s.deposits].slice(0, 50),
-        depositAddresses: s.depositAddresses[network]
-          ? s.depositAddresses
-          : { ...s.depositAddresses, [network]: address },
-      }));
-      return { ok: true, deposit };
+      const payCurrency = NETWORK_TO_PAY_CURRENCY[network];
+      try {
+        const r = await fetch("/api/payments/create", {
+          method: "POST",
+          headers: { "content-type": "application/json" },
+          body: JSON.stringify({
+            priceAmount: Number(amount.toFixed(2)),
+            payCurrency,
+            orderId: `hg_${userKey}_${Date.now()}`.slice(0, 64),
+            description: `HedgeGate deposit (${userKey})`,
+          }),
+        });
+        const data = (await r.json().catch(() => ({}))) as {
+          paymentId?: string;
+          paymentStatus?: string;
+          payAddress?: string;
+          payAmount?: number;
+          payCurrency?: string;
+          error?: string;
+        };
+        if (!r.ok || !data.paymentId || !data.payAddress) {
+          return {
+            ok: false,
+            error: data.error ?? "Failed to create deposit",
+          };
+        }
+        const now = Date.now();
+        const deposit: Deposit = {
+          id: `D${now.toString(36)}${Math.floor(Math.random() * 1e6).toString(36)}`,
+          paymentId: data.paymentId,
+          amount: Number(amount.toFixed(2)),
+          address: data.payAddress,
+          network,
+          payAmount: Number(data.payAmount ?? 0),
+          payCurrency: String(data.payCurrency ?? payCurrency),
+          status: "PENDING",
+          rawStatus: data.paymentStatus ?? "waiting",
+          createdAt: now,
+          confirmedAt: null,
+          txHash: null,
+        };
+        setState((s) => ({
+          ...s,
+          deposits: [deposit, ...s.deposits].slice(0, 50),
+        }));
+        return { ok: true, deposit };
+      } catch {
+        return { ok: false, error: "Network error. Please try again." };
+      }
     },
-    [state.depositAddresses, userKey],
+    [userKey],
   );
 
-  // Confirm pending deposits and credit balance
+  // Poll NOWPayments for status of pending deposits and credit balance on confirm
+  const pendingKey = state.deposits
+    .filter((d) => d.status === "PENDING")
+    .map((d) => d.paymentId)
+    .join(",");
+
   useEffect(() => {
-    const hasPending = state.deposits.some((d) => d.status === "PENDING");
-    if (!hasPending) return;
-    const id = setInterval(() => {
+    if (!pendingKey) return;
+    let cancelled = false;
+
+    const tick = async () => {
+      const ids = pendingKey.split(",").filter(Boolean);
+      const results = await Promise.all(
+        ids.map(async (id) => {
+          try {
+            const r = await fetch(
+              `/api/payments/${encodeURIComponent(id)}/status`,
+            );
+            if (!r.ok) return null;
+            const data = (await r.json()) as {
+              paymentId: string;
+              paymentStatus: string;
+              txHash?: string | null;
+            };
+            return data;
+          } catch {
+            return null;
+          }
+        }),
+      );
+      if (cancelled) return;
+      const updates = results.filter(
+        (u): u is { paymentId: string; paymentStatus: string; txHash?: string | null } =>
+          u !== null,
+      );
+      if (updates.length === 0) return;
+
       setState((s) => {
-        const now = Date.now();
         let credited = 0;
+        let changed = false;
         const deposits = s.deposits.map((d) => {
-          if (d.status === "PENDING" && now >= d.confirmAt) {
+          const u = updates.find((x) => x.paymentId === d.paymentId);
+          if (!u) return d;
+          const raw = u.paymentStatus;
+          const isFinal = raw === "confirmed" || raw === "finished";
+          const isFailed =
+            raw === "failed" || raw === "refunded" || raw === "expired";
+          if (d.status === "PENDING" && isFinal) {
             credited += d.amount;
-            return { ...d, status: "CONFIRMED" as DepositStatus, confirmedAt: now };
+            changed = true;
+            return {
+              ...d,
+              status: "CONFIRMED" as DepositStatus,
+              rawStatus: raw,
+              confirmedAt: Date.now(),
+              txHash: u.txHash ?? d.txHash,
+            };
+          }
+          if (d.status === "PENDING" && isFailed) {
+            changed = true;
+            return { ...d, status: "FAILED" as DepositStatus, rawStatus: raw };
+          }
+          if (raw !== d.rawStatus) {
+            changed = true;
+            return { ...d, rawStatus: raw };
           }
           return d;
         });
-        if (credited === 0) return s;
+        if (!changed) return s;
         return {
           ...s,
           deposits,
           balance: Number((s.balance + credited).toFixed(2)),
         };
       });
-    }, 800);
-    return () => clearInterval(id);
-  }, [state.deposits]);
+    };
+
+    void tick();
+    const interval = setInterval(tick, 8_000);
+    return () => {
+      cancelled = true;
+      clearInterval(interval);
+    };
+  }, [pendingKey]);
 
   const stats = useMemo(() => {
     const wins = state.trades.filter((t) => t.outcome === "WIN").length;
@@ -515,7 +549,6 @@ export function useTradingBot() {
     reset,
     clearSettledNotice,
     requestWithdrawal,
-    getDepositAddress,
-    simulateDeposit,
+    createDeposit,
   };
 }

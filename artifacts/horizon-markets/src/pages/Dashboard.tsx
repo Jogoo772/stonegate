@@ -400,8 +400,8 @@ export default function Dashboard() {
       <DepositDialog
         open={depositOpen}
         onOpenChange={setDepositOpen}
-        getDepositAddress={bot.getDepositAddress}
-        onSubmit={bot.simulateDeposit}
+        deposits={bot.deposits}
+        onSubmit={bot.createDeposit}
       />
     </div>
   );

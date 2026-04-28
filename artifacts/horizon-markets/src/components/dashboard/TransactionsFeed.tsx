@@ -184,6 +184,7 @@ function DepositStatusBadge({ status }: { status: Deposit["status"] }) {
   const styles: Record<Deposit["status"], string> = {
     PENDING: "bg-amber-500/10 text-amber-400 border-amber-500/20",
     CONFIRMED: "bg-primary/10 text-primary border-primary/20",
+    FAILED: "bg-rose-500/10 text-rose-400 border-rose-500/20",
   };
   return (
     <span
