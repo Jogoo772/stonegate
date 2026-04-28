@@ -135,7 +135,7 @@ export default function Dashboard() {
               </Badge>
               <h1 className="text-4xl md:text-5xl font-black tracking-tighter">
                 Welcome back,{" "}
-                <span className="text-transparent bg-clip-text bg-gradient-to-r from-primary to-emerald-400">
+                <span className="text-gold-gradient">
                   {firstName}
                 </span>
               </h1>
@@ -454,7 +454,7 @@ function ActionButton({
       disabled={disabled}
       className={`w-full justify-start font-semibold ${
         primary
-          ? "bg-primary text-primary-foreground hover:bg-primary/90 shadow-[0_0_15px_rgba(0,255,136,0.25)]"
+          ? "bg-primary text-primary-foreground hover:bg-primary/90 shadow-[0_0_15px_rgba(255,179,0,0.25)]"
           : "bg-white/5 hover:bg-white/10 text-foreground"
       } disabled:opacity-50 disabled:cursor-not-allowed`}
     >

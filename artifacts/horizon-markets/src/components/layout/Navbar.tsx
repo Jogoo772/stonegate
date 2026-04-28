@@ -64,7 +64,7 @@ export function Navbar() {
               Sign In
             </Link>
             <Link href="/sign-up">
-              <Button className="bg-primary text-primary-foreground hover:bg-primary/90 font-semibold shadow-[0_0_15px_rgba(0,255,136,0.3)]">
+              <Button className="bg-primary text-primary-foreground hover:bg-primary/90 font-semibold shadow-[0_0_15px_rgba(255,179,0,0.3)]">
                 Create Free Account
               </Button>
             </Link>

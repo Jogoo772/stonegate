@@ -53,7 +53,7 @@ const clerkAppearance = {
         : `${basePath}/logo.svg`,
   },
   variables: {
-    colorPrimary: "#00FF88",
+    colorPrimary: "#FFB300",
     colorForeground: "#FFFFFF",
     colorMutedForeground: "#A1A1AA",
     colorDanger: "#EF4444",
@@ -67,7 +67,7 @@ const clerkAppearance = {
   elements: {
     rootBox: "w-full",
     cardBox:
-      "bg-[#0A0A0A] border border-[#222] rounded-2xl w-[440px] max-w-full overflow-hidden shadow-[0_0_60px_rgba(0,255,136,0.08)]",
+      "bg-[#0A0A0A] border border-[#222] rounded-2xl w-[440px] max-w-full overflow-hidden shadow-[0_0_60px_rgba(255,179,0,0.08)]",
     card: "!shadow-none !border-0 !bg-transparent !rounded-none",
     footer: "!shadow-none !border-0 !bg-transparent !rounded-none",
     headerTitle: "text-white font-bold tracking-tight",
@@ -75,18 +75,18 @@ const clerkAppearance = {
     socialButtonsBlockButtonText: "text-white font-medium",
     formFieldLabel: "text-zinc-300 font-medium",
     footerActionLink:
-      "!text-[#00FF88] hover:!text-[#2EFF9D] font-semibold no-underline",
+      "!text-[#FFB300] hover:!text-[#FFD54F] font-semibold no-underline",
     footerActionText: "text-zinc-400",
     dividerText: "text-zinc-500",
-    identityPreviewEditButton: "text-[#00FF88]",
-    formFieldSuccessText: "text-[#00FF88]",
+    identityPreviewEditButton: "text-[#FFB300]",
+    formFieldSuccessText: "text-[#FFB300]",
     alertText: "text-zinc-200",
     logoBox: "justify-center mb-2",
     logoImage: "h-9 w-auto",
     socialButtonsBlockButton:
       "border border-[#262626] bg-[#161616] hover:!bg-[#1f1f1f]",
     formButtonPrimary:
-      "!bg-[#00FF88] hover:!bg-[#2EFF9D] !text-black font-bold !shadow-[0_0_20px_rgba(0,255,136,0.35)]",
+      "!bg-[#FFB300] hover:!bg-[#FFD54F] !text-black font-bold !shadow-[0_0_20px_rgba(255,179,0,0.35)]",
     formFieldInput:
       "bg-[#161616] border-[#262626] text-white placeholder:text-zinc-500",
     footerAction: "text-zinc-400",

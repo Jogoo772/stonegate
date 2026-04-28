@@ -29,7 +29,7 @@ export function FinalCTA() {
           </p>
           <div className="flex flex-col sm:flex-row items-center justify-center gap-4">
             <Link href="/sign-up" className="w-full sm:w-auto">
-              <Button size="lg" className="w-full sm:w-auto h-14 px-10 text-lg font-bold bg-primary text-primary-foreground hover:bg-primary/90 shadow-[0_0_20px_rgba(0,255,136,0.4)]">
+              <Button size="lg" className="w-full sm:w-auto h-14 px-10 text-lg font-bold bg-primary text-primary-foreground hover:bg-primary/90 shadow-[0_0_20px_rgba(255,179,0,0.4)]">
                 Create Free Account
               </Button>
             </Link>

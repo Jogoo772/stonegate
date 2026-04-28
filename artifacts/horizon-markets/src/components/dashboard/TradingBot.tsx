@@ -87,7 +87,7 @@ export function TradingBot() {
                 disabled={bot.isRunning}
                 className={`px-3 py-1.5 text-xs font-bold tracking-wide rounded-md transition-colors ${
                   bot.pair === p.value
-                    ? "bg-primary text-primary-foreground shadow-[0_0_10px_rgba(0,255,136,0.25)]"
+                    ? "bg-primary text-primary-foreground shadow-[0_0_10px_rgba(255,179,0,0.25)]"
                     : "text-muted-foreground hover:text-foreground"
                 } ${bot.isRunning ? "opacity-50 cursor-not-allowed" : ""}`}
               >
@@ -109,7 +109,7 @@ export function TradingBot() {
             <Button
               size="sm"
               onClick={bot.start}
-              className="bg-primary text-primary-foreground hover:bg-primary/90 font-bold shadow-[0_0_15px_rgba(0,255,136,0.35)]"
+              className="bg-primary text-primary-foreground hover:bg-primary/90 font-bold shadow-[0_0_15px_rgba(255,179,0,0.35)]"
             >
               <Play className="w-4 h-4 mr-1.5" />
               Start Bot
@@ -232,7 +232,7 @@ export function TradingBot() {
                   return (
                     <motion.li
                       key={t.id}
-                      initial={{ opacity: 0, y: -8, backgroundColor: win ? "rgba(0,255,136,0.08)" : "rgba(244,63,94,0.08)" }}
+                      initial={{ opacity: 0, y: -8, backgroundColor: win ? "rgba(255,179,0,0.08)" : "rgba(244,63,94,0.08)" }}
                       animate={{ opacity: 1, y: 0, backgroundColor: "rgba(0,0,0,0)" }}
                       exit={{ opacity: 0 }}
                       transition={{ duration: 0.4 }}

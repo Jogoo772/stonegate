@@ -60,7 +60,7 @@ export function DepositDialog({
   const [copied, setCopied] = useState(false);
 
   const address = getDepositAddress(network);
-  const qrUrl = `https://api.qrserver.com/v1/create-qr-code/?size=180x180&margin=8&bgcolor=0c0c0c&color=00ff88&data=${encodeURIComponent(
+  const qrUrl = `https://api.qrserver.com/v1/create-qr-code/?size=180x180&margin=8&bgcolor=0c0c0c&color=ffc107&data=${encodeURIComponent(
     address,
   )}`;
 

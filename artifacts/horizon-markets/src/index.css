@@ -88,31 +88,31 @@
   --sidebar: 0 0% 98%;
   --sidebar-foreground: 0 0% 0%;
   --sidebar-border: 0 0% 90%;
-  --sidebar-primary: 152 100% 50%;
+  --sidebar-primary: 42 100% 50%;
   --sidebar-primary-foreground: 0 0% 0%;
   --sidebar-accent: 0 0% 96%;
   --sidebar-accent-foreground: 0 0% 0%;
-  --sidebar-ring: 152 100% 50%;
+  --sidebar-ring: 42 100% 50%;
   --popover: 0 0% 100%;
   --popover-foreground: 0 0% 0%;
   --popover-border: 0 0% 90%;
-  --primary: 152 100% 50%;
+  --primary: 42 100% 50%;
   --primary-foreground: 0 0% 0%;
   --secondary: 0 0% 96%;
   --secondary-foreground: 0 0% 0%;
   --muted: 0 0% 96%;
   --muted-foreground: 0 0% 40%;
-  --accent: 152 100% 90%;
-  --accent-foreground: 152 100% 20%;
+  --accent: 42 100% 90%;
+  --accent-foreground: 42 100% 20%;
   --destructive: 0 100% 50%;
   --destructive-foreground: 0 0% 100%;
   --input: 0 0% 90%;
-  --ring: 152 100% 50%;
-  --chart-1: 152 100% 50%;
-  --chart-2: 172 100% 40%;
-  --chart-3: 192 100% 40%;
-  --chart-4: 212 100% 40%;
-  --chart-5: 232 100% 40%;
+  --ring: 42 100% 50%;
+  --chart-1: 42 100% 55%;
+  --chart-2: 32 100% 50%;
+  --chart-3: 50 100% 55%;
+  --chart-4: 22 100% 50%;
+  --chart-5: 60 100% 50%;
 
   --app-font-sans: 'Inter', sans-serif;
   --app-font-serif: Georgia, serif;
@@ -150,38 +150,38 @@
 
   --background: 0 0% 0%;
   --foreground: 0 0% 98%;
-  --border: 152 20% 12%;
-  --card: 152 10% 4%;
+  --border: 42 25% 12%;
+  --card: 42 15% 4%;
   --card-foreground: 0 0% 98%;
-  --card-border: 152 20% 12%;
-  --sidebar: 152 10% 2%;
+  --card-border: 42 25% 12%;
+  --sidebar: 42 15% 2%;
   --sidebar-foreground: 0 0% 98%;
-  --sidebar-border: 152 20% 12%;
-  --sidebar-primary: 152 100% 50%;
+  --sidebar-border: 42 25% 12%;
+  --sidebar-primary: 42 100% 50%;
   --sidebar-primary-foreground: 0 0% 0%;
-  --sidebar-accent: 152 20% 10%;
+  --sidebar-accent: 42 25% 10%;
   --sidebar-accent-foreground: 0 0% 98%;
-  --sidebar-ring: 152 100% 50%;
-  --popover: 152 10% 4%;
+  --sidebar-ring: 42 100% 50%;
+  --popover: 42 15% 4%;
   --popover-foreground: 0 0% 98%;
-  --popover-border: 152 20% 12%;
-  --primary: 152 100% 50%;
+  --popover-border: 42 25% 12%;
+  --primary: 42 100% 50%;
   --primary-foreground: 0 0% 0%;
-  --secondary: 152 20% 10%;
+  --secondary: 42 25% 10%;
   --secondary-foreground: 0 0% 98%;
-  --muted: 152 20% 10%;
-  --muted-foreground: 152 10% 60%;
-  --accent: 152 100% 20%;
-  --accent-foreground: 152 100% 90%;
+  --muted: 42 25% 10%;
+  --muted-foreground: 42 10% 65%;
+  --accent: 42 100% 20%;
+  --accent-foreground: 42 100% 90%;
   --destructive: 0 62.8% 30.6%;
   --destructive-foreground: 0 0% 98%;
-  --input: 152 20% 16%;
-  --ring: 152 100% 50%;
-  --chart-1: 152 100% 50%;
-  --chart-2: 172 100% 40%;
-  --chart-3: 192 100% 40%;
-  --chart-4: 212 100% 40%;
-  --chart-5: 232 100% 40%;
+  --input: 42 25% 16%;
+  --ring: 42 100% 50%;
+  --chart-1: 42 100% 55%;
+  --chart-2: 32 100% 50%;
+  --chart-3: 50 100% 55%;
+  --chart-4: 22 100% 50%;
+  --chart-5: 60 100% 50%;
 }
 
 @layer base {
@@ -221,6 +221,40 @@
 
 .animate-marquee {
   animation: marquee 30s linear infinite;
+}
+
+/* Catchy gold gradient utilities */
+@layer utilities {
+  .text-gold-gradient {
+    background-image: linear-gradient(135deg, #FFE082 0%, #FFB300 35%, #FFC107 60%, #FFD54F 100%);
+    -webkit-background-clip: text;
+    background-clip: text;
+    color: transparent;
+    background-size: 200% 200%;
+    animation: gold-shimmer 8s ease-in-out infinite;
+  }
+  .bg-gold-gradient {
+    background-image: linear-gradient(135deg, #FFB300 0%, #FFC107 50%, #FFD54F 100%);
+  }
+  .ring-gold {
+    box-shadow:
+      0 0 0 1px rgba(255, 179, 0, 0.35),
+      0 0 30px -5px rgba(255, 179, 0, 0.5);
+  }
+}
+
+@keyframes gold-shimmer {
+  0%, 100% { background-position: 0% 50%; }
+  50% { background-position: 100% 50%; }
+}
+
+@keyframes pulse-gold {
+  0%, 100% { box-shadow: 0 0 20px -5px rgba(255, 179, 0, 0.4); }
+  50% { box-shadow: 0 0 40px -5px rgba(255, 179, 0, 0.7); }
+}
+
+.animate-pulse-gold {
+  animation: pulse-gold 2.4s ease-in-out infinite;
 }
 
 @layer utilities {

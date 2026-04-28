@@ -21,7 +21,7 @@ export function Stats() {
               transition={{ duration: 0.5, delay: i * 0.1 }}
               className="text-center px-4"
             >
-              <div className="text-3xl md:text-5xl font-black text-transparent bg-clip-text bg-gradient-to-r from-primary to-emerald-400 mb-2 font-mono">
+              <div className="text-3xl md:text-5xl font-black text-gold-gradient mb-2 font-mono">
                 {stat.value}
               </div>
               <div className="text-sm font-medium text-muted-foreground uppercase tracking-widest">
