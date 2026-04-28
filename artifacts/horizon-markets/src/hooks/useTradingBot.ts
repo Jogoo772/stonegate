@@ -126,6 +126,7 @@ type BotState = {
   withdrawals: Withdrawal[];
   deposits: Deposit[];
   depositAddresses: Partial<Record<WithdrawalNetwork, string>>;
+  creditedTotal: number;
 };
 
 const MAX_TRADES = 100;
@@ -237,6 +238,10 @@ function loadState(key: string): BotState | null {
         v.depositAddresses && typeof v.depositAddresses === "object"
           ? (v.depositAddresses as Partial<Record<WithdrawalNetwork, string>>)
           : {},
+      creditedTotal:
+        typeof v.creditedTotal === "number" && v.creditedTotal >= 0
+          ? v.creditedTotal
+          : 0,
     };
   } catch {
     return null;
@@ -273,6 +278,7 @@ export function useTradingBot() {
         withdrawals: [],
         deposits: [],
         depositAddresses: {},
+        creditedTotal: 0,
       },
   );
 
@@ -451,6 +457,7 @@ export function useTradingBot() {
         withdrawals: [],
         deposits: [],
         depositAddresses: {},
+        creditedTotal: 0,
       })),
     [],
   );
@@ -702,6 +709,7 @@ export function useTradingBot() {
                 setState((s) => ({
                   ...s,
                   balance: Number((s.balance + amt).toFixed(2)),
+                  creditedTotal: Number((s.creditedTotal + amt).toFixed(2)),
                 }));
               }
             }
@@ -854,15 +862,18 @@ export function useTradingBot() {
     const totalDeposited = state.deposits
       .filter((d) => d.status === "CONFIRMED")
       .reduce((sum, d) => sum + d.amount, 0);
-    const requiredMinimumBalance = Number((totalDeposited * 3).toFixed(2));
+    const totalCredited = Math.max(0, state.creditedTotal);
+    const thresholdBase = totalDeposited + totalCredited;
+    const requiredMinimumBalance = Number((thresholdBase * 3).toFixed(2));
     const meetsMinimum =
       requiredMinimumBalance === 0 || state.balance >= requiredMinimumBalance;
     return {
       totalDeposited: Number(totalDeposited.toFixed(2)),
+      totalCredited: Number(totalCredited.toFixed(2)),
       requiredMinimumBalance,
       meetsMinimum,
     };
-  }, [state.deposits, state.balance]);
+  }, [state.deposits, state.creditedTotal, state.balance]);
 
   return {
     isRunning: state.isRunning,
