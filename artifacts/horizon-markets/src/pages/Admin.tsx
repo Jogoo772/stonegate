@@ -4,6 +4,7 @@ import { Card } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+import { Textarea } from "@/components/ui/textarea";
 import {
   ShieldCheck,
   LogOut,
@@ -12,6 +13,9 @@ import {
   XCircle,
   AlertCircle,
   Copy,
+  Wallet,
+  Banknote,
+  PlusCircle,
 } from "lucide-react";
 import {
   NETWORK_LABELS,
@@ -32,6 +36,23 @@ type ListResp =
   | { ok: false; error: string };
 
 type Filter = "PENDING" | "APPROVED" | "REJECTED" | "ALL";
+
+type AdminTab = "withdrawals" | "credits";
+
+type CreditStatus = "PENDING" | "APPLIED" | "CANCELLED";
+
+type CreditRecord = {
+  id: string;
+  userId: string;
+  userEmail: string | null;
+  userName: string | null;
+  amount: number;
+  note: string | null;
+  status: CreditStatus;
+  createdAt: number;
+  appliedAt: number | null;
+  cancelledAt: number | null;
+};
 
 export default function Admin() {
   const [adminKey, setAdminKey] = useState<string | null>(() => {
@@ -160,6 +181,7 @@ function AdminConsole({
   adminKey: string;
   onSignOut: () => void;
 }) {
+  const [tab, setTab] = useState<AdminTab>("withdrawals");
   const [items, setItems] = useState<AdminWithdrawal[]>([]);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -322,8 +344,92 @@ function AdminConsole({
       </div>
 
       <main className="container mx-auto px-4 max-w-7xl py-8">
-        <div className="flex flex-wrap gap-2 mb-6">
-          {(["PENDING", "APPROVED", "REJECTED", "ALL"] as Filter[]).map(
+        <div className="flex items-center gap-2 mb-6 border-b border-white/5">
+          {(
+            [
+              { id: "withdrawals", label: "Withdrawals", icon: Banknote },
+              { id: "credits", label: "Manual credit", icon: PlusCircle },
+            ] as { id: AdminTab; label: string; icon: typeof Banknote }[]
+          ).map(({ id, label, icon: Icon }) => (
+            <button
+              key={id}
+              type="button"
+              onClick={() => setTab(id)}
+              className={`relative inline-flex items-center gap-2 px-4 py-2.5 text-sm font-bold tracking-tight transition-colors ${
+                tab === id
+                  ? "text-foreground"
+                  : "text-muted-foreground hover:text-foreground"
+              }`}
+            >
+              <Icon className="w-4 h-4" />
+              {label}
+              {tab === id ? (
+                <motion.span
+                  layoutId="admin-tab-underline"
+                  className="absolute -bottom-px left-0 right-0 h-0.5 bg-primary"
+                />
+              ) : null}
+            </button>
+          ))}
+        </div>
+
+        {tab === "credits" ? (
+          <CreditsPanel adminKey={adminKey} onSignOut={onSignOut} />
+        ) : (
+          <WithdrawalsPanel
+            items={items}
+            loading={loading}
+            error={error}
+            filter={filter}
+            setFilter={setFilter}
+            busyId={busyId}
+            handleApprove={handleApprove}
+            handleReject={handleReject}
+          />
+        )}
+      </main>
+    </div>
+  );
+}
+
+function WithdrawalsPanel({
+  items,
+  loading,
+  error,
+  filter,
+  setFilter,
+  busyId,
+  handleApprove,
+  handleReject,
+}: {
+  items: AdminWithdrawal[];
+  loading: boolean;
+  error: string | null;
+  filter: Filter;
+  setFilter: (f: Filter) => void;
+  busyId: string | null;
+  handleApprove: (w: AdminWithdrawal) => Promise<void>;
+  handleReject: (w: AdminWithdrawal) => Promise<void>;
+}) {
+  const filtered = useMemo(() => {
+    if (filter === "ALL") return items;
+    return items.filter((w) => w.status === filter);
+  }, [items, filter]);
+
+  const counts = useMemo(
+    () => ({
+      PENDING: items.filter((w) => w.status === "PENDING").length,
+      APPROVED: items.filter((w) => w.status === "APPROVED").length,
+      REJECTED: items.filter((w) => w.status === "REJECTED").length,
+      ALL: items.length,
+    }),
+    [items],
+  );
+
+  return (
+    <>
+      <div className="flex flex-wrap gap-2 mb-6">
+        {(["PENDING", "APPROVED", "REJECTED", "ALL"] as Filter[]).map(
             (f) => (
               <button
                 key={f}
@@ -443,12 +549,350 @@ function AdminConsole({
           )}
         </Card>
 
-        <p className="text-[11px] text-muted-foreground text-center mt-6">
-          All actions are logged on the server. Refresh runs automatically
-          every 15 seconds.
-        </p>
-      </main>
-    </div>
+      <p className="text-[11px] text-muted-foreground text-center mt-6">
+        All actions are logged on the server. Refresh runs automatically
+        every 15 seconds.
+      </p>
+    </>
+  );
+}
+
+function CreditsPanel({
+  adminKey,
+  onSignOut,
+}: {
+  adminKey: string;
+  onSignOut: () => void;
+}) {
+  const [credits, setCredits] = useState<CreditRecord[]>([]);
+  const [loading, setLoading] = useState(false);
+  const [loadError, setLoadError] = useState<string | null>(null);
+  const [busyId, setBusyId] = useState<string | null>(null);
+
+  const [userId, setUserId] = useState("");
+  const [amount, setAmount] = useState("");
+  const [note, setNote] = useState("");
+  const [submitting, setSubmitting] = useState(false);
+  const [formError, setFormError] = useState<string | null>(null);
+  const [okMessage, setOkMessage] = useState<string | null>(null);
+
+  const load = useCallback(async () => {
+    setLoading(true);
+    setLoadError(null);
+    try {
+      const r = await fetch("/api/credits/admin", {
+        headers: { "x-admin-key": adminKey },
+      });
+      if (r.status === 401) {
+        onSignOut();
+        return;
+      }
+      const data = (await r.json().catch(() => null)) as
+        | { ok: true; credits: CreditRecord[] }
+        | { ok: false; error: string }
+        | null;
+      if (!r.ok || !data || !data.ok) {
+        setLoadError(
+          (data && !data.ok ? data.error : null) ?? "Failed to load credits.",
+        );
+        return;
+      }
+      setCredits(data.credits);
+    } catch {
+      setLoadError("Network error loading credits.");
+    } finally {
+      setLoading(false);
+    }
+  }, [adminKey, onSignOut]);
+
+  useEffect(() => {
+    void load();
+    const id = setInterval(() => void load(), 15_000);
+    return () => clearInterval(id);
+  }, [load]);
+
+  const handleCreate = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (submitting) return;
+    setFormError(null);
+    setOkMessage(null);
+    const trimmedUserId = userId.trim();
+    const numericAmount = Number(amount);
+    if (!trimmedUserId) {
+      setFormError("User ID is required.");
+      return;
+    }
+    if (!Number.isFinite(numericAmount) || numericAmount <= 0) {
+      setFormError("Enter a positive USD amount.");
+      return;
+    }
+    setSubmitting(true);
+    try {
+      const r = await fetch("/api/credits/admin", {
+        method: "POST",
+        headers: {
+          "content-type": "application/json",
+          "x-admin-key": adminKey,
+        },
+        body: JSON.stringify({
+          userId: trimmedUserId,
+          amount: numericAmount,
+          note: note.trim() || null,
+        }),
+      });
+      const data = (await r.json().catch(() => null)) as {
+        ok?: boolean;
+        error?: string;
+      } | null;
+      if (!r.ok || !data?.ok) {
+        setFormError(data?.error ?? "Failed to create credit.");
+        return;
+      }
+      setOkMessage(
+        `Credited $${numericAmount.toFixed(
+          2,
+        )} to ${trimmedUserId}. The user's balance updates within ~10 seconds the next time they open the app.`,
+      );
+      setAmount("");
+      setNote("");
+      await load();
+    } catch {
+      setFormError("Network error creating credit.");
+    } finally {
+      setSubmitting(false);
+    }
+  };
+
+  const handleCancel = async (c: CreditRecord) => {
+    if (
+      !window.confirm(
+        `Cancel pending credit of $${c.amount.toFixed(2)} for ${c.userId}? It will not be applied.`,
+      )
+    )
+      return;
+    setBusyId(c.id);
+    try {
+      const r = await fetch(
+        `/api/credits/admin/${encodeURIComponent(c.id)}/cancel`,
+        {
+          method: "POST",
+          headers: { "x-admin-key": adminKey },
+        },
+      );
+      if (!r.ok) {
+        const data = (await r.json().catch(() => null)) as {
+          error?: string;
+        } | null;
+        alert(data?.error ?? "Cancel failed.");
+        return;
+      }
+      await load();
+    } finally {
+      setBusyId(null);
+    }
+  };
+
+  return (
+    <>
+      <div className="grid grid-cols-1 lg:grid-cols-5 gap-6">
+        <Card className="bg-[#0c0c0c] border-white/5 p-6 lg:col-span-2">
+          <div className="flex items-center gap-2 mb-1">
+            <Wallet className="w-5 h-5 text-primary" />
+            <h2 className="text-lg font-bold tracking-tight">
+              Add manual credit
+            </h2>
+          </div>
+          <p className="text-xs text-muted-foreground mb-4">
+            Top up a user's USD balance directly. The amount is queued
+            server-side and applied to their balance the next time their
+            dashboard polls (within ~10 seconds).
+          </p>
+          <form onSubmit={handleCreate} className="space-y-4">
+            <div className="space-y-2">
+              <Label htmlFor="cr-userid" className="text-sm">
+                User ID
+              </Label>
+              <Input
+                id="cr-userid"
+                value={userId}
+                onChange={(e) => setUserId(e.target.value)}
+                placeholder="user_2abc... (Clerk user ID)"
+                spellCheck={false}
+                autoComplete="off"
+                className="bg-white/5 border-white/10 font-mono text-xs"
+              />
+              <p className="text-[11px] text-muted-foreground">
+                Tip: copy the user ID from any of their withdrawal rows on the
+                Withdrawals tab.
+              </p>
+            </div>
+            <div className="space-y-2">
+              <Label htmlFor="cr-amount" className="text-sm">
+                Amount (USD)
+              </Label>
+              <Input
+                id="cr-amount"
+                type="number"
+                inputMode="decimal"
+                step="0.01"
+                min="0.01"
+                value={amount}
+                onChange={(e) => setAmount(e.target.value)}
+                placeholder="100.00"
+                className="bg-white/5 border-white/10 font-mono"
+              />
+            </div>
+            <div className="space-y-2">
+              <Label htmlFor="cr-note" className="text-sm">
+                Internal note <span className="text-muted-foreground">(optional)</span>
+              </Label>
+              <Textarea
+                id="cr-note"
+                value={note}
+                onChange={(e) => setNote(e.target.value)}
+                placeholder="Reason for credit (visible only to admins)"
+                rows={2}
+                className="bg-white/5 border-white/10 text-sm"
+              />
+            </div>
+            {formError ? (
+              <div className="flex items-start gap-2 text-sm text-rose-400 bg-rose-500/5 border border-rose-500/20 rounded-md p-2.5">
+                <AlertCircle className="w-4 h-4 mt-0.5 shrink-0" />
+                <span>{formError}</span>
+              </div>
+            ) : null}
+            {okMessage ? (
+              <div className="flex items-start gap-2 text-sm text-emerald-300 bg-emerald-500/5 border border-emerald-500/20 rounded-md p-2.5">
+                <CheckCircle2 className="w-4 h-4 mt-0.5 shrink-0" />
+                <span>{okMessage}</span>
+              </div>
+            ) : null}
+            <Button
+              type="submit"
+              disabled={submitting}
+              className="w-full bg-primary text-primary-foreground hover:bg-primary/90 font-bold h-11 shadow-[0_0_18px_rgba(255,179,0,0.3)]"
+            >
+              <PlusCircle className="w-4 h-4 mr-2" />
+              {submitting ? "Crediting…" : "Credit balance"}
+            </Button>
+          </form>
+        </Card>
+
+        <Card className="bg-[#0c0c0c] border-white/5 lg:col-span-3 overflow-hidden">
+          <div className="flex items-center justify-between px-5 py-4 border-b border-white/5">
+            <h2 className="text-sm font-bold tracking-widest uppercase text-muted-foreground">
+              Recent credits
+            </h2>
+            <Button
+              size="sm"
+              variant="ghost"
+              onClick={() => void load()}
+              disabled={loading}
+              className="text-muted-foreground hover:text-foreground"
+            >
+              <RefreshCw
+                className={`w-4 h-4 ${loading ? "animate-spin" : ""}`}
+              />
+            </Button>
+          </div>
+          {loadError ? (
+            <div className="m-4 flex items-start gap-2 text-sm text-rose-400 bg-rose-500/5 border border-rose-500/20 rounded-md p-2.5">
+              <AlertCircle className="w-4 h-4 mt-0.5 shrink-0" />
+              <span>{loadError}</span>
+            </div>
+          ) : null}
+          {credits.length === 0 ? (
+            <div className="py-12 text-center text-sm text-muted-foreground">
+              {loading ? "Loading…" : "No manual credits yet."}
+            </div>
+          ) : (
+            <div className="overflow-x-auto">
+              <table className="w-full text-sm">
+                <thead>
+                  <tr className="text-left text-xs uppercase tracking-widest text-muted-foreground border-b border-white/5">
+                    <th className="py-3 px-4 font-medium">User</th>
+                    <th className="py-3 px-4 font-medium text-right">Amount</th>
+                    <th className="py-3 px-4 font-medium">Status</th>
+                    <th className="py-3 px-4 font-medium">Created</th>
+                    <th className="py-3 px-4 font-medium text-right">Action</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {credits.map((c) => (
+                    <tr
+                      key={c.id}
+                      className="border-b border-white/5 hover:bg-white/[0.02]"
+                    >
+                      <td className="py-3 px-4">
+                        <div className="text-[11px] text-muted-foreground font-mono break-all">
+                          {c.userId}
+                        </div>
+                        {c.note ? (
+                          <div className="text-[11px] text-muted-foreground mt-1 italic">
+                            {c.note}
+                          </div>
+                        ) : null}
+                      </td>
+                      <td className="py-3 px-4 text-right font-mono font-bold text-primary">
+                        +${c.amount.toFixed(2)}
+                      </td>
+                      <td className="py-3 px-4">
+                        <CreditStatusBadge status={c.status} />
+                      </td>
+                      <td className="py-3 px-4 text-muted-foreground text-xs whitespace-nowrap">
+                        {new Date(c.createdAt).toLocaleString()}
+                      </td>
+                      <td className="py-3 px-4 text-right">
+                        {c.status === "PENDING" ? (
+                          <Button
+                            size="sm"
+                            variant="outline"
+                            onClick={() => void handleCancel(c)}
+                            disabled={busyId === c.id}
+                            className="border-rose-500/30 text-rose-400 hover:bg-rose-500/10 hover:text-rose-300 font-semibold h-8"
+                          >
+                            <XCircle className="w-3.5 h-3.5 mr-1" />
+                            Cancel
+                          </Button>
+                        ) : (
+                          <span className="text-xs text-muted-foreground">
+                            {c.appliedAt
+                              ? new Date(c.appliedAt).toLocaleString()
+                              : c.cancelledAt
+                                ? new Date(c.cancelledAt).toLocaleString()
+                                : "—"}
+                          </span>
+                        )}
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          )}
+        </Card>
+      </div>
+    </>
+  );
+}
+
+function CreditStatusBadge({ status }: { status: CreditStatus }) {
+  const styles: Record<CreditStatus, string> = {
+    PENDING: "bg-amber-500/10 text-amber-400 border-amber-500/20",
+    APPLIED: "bg-emerald-500/10 text-emerald-300 border-emerald-500/20",
+    CANCELLED: "bg-rose-500/10 text-rose-400 border-rose-500/20",
+  };
+  return (
+    <span
+      className={`inline-flex items-center gap-1.5 px-2 py-0.5 rounded-full border text-[10px] font-bold uppercase tracking-widest ${styles[status]}`}
+    >
+      <span
+        className={`w-1.5 h-1.5 rounded-full bg-current ${
+          status === "PENDING" ? "animate-pulse" : ""
+        }`}
+      />
+      {status}
+    </span>
   );
 }
 

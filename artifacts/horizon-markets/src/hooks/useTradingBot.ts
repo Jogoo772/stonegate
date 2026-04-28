@@ -666,6 +666,62 @@ export function useTradingBot() {
     };
   }, [pendingWithdrawalKey, userKey]);
 
+  // Poll for admin-issued credits and apply them to local balance once.
+  useEffect(() => {
+    if (!userKey || userKey === "anon") return;
+    let cancelled = false;
+    const inFlight = new Set<string>();
+
+    const tick = async () => {
+      try {
+        const r = await fetch(
+          `/api/credits/pending?userId=${encodeURIComponent(userKey)}`,
+        );
+        if (!r.ok) return;
+        const data = (await r.json().catch(() => null)) as {
+          ok?: boolean;
+          credits?: { id: string; amount: number }[];
+        } | null;
+        if (!data?.ok || !Array.isArray(data.credits)) return;
+        for (const c of data.credits) {
+          if (cancelled) return;
+          if (inFlight.has(c.id)) continue;
+          inFlight.add(c.id);
+          try {
+            const ackR = await fetch(
+              `/api/credits/${encodeURIComponent(c.id)}/ack`,
+              {
+                method: "POST",
+                headers: { "content-type": "application/json" },
+                body: JSON.stringify({ userId: userKey }),
+              },
+            );
+            if (ackR.ok && !cancelled) {
+              const amt = Number(c.amount);
+              if (Number.isFinite(amt) && amt > 0) {
+                setState((s) => ({
+                  ...s,
+                  balance: Number((s.balance + amt).toFixed(2)),
+                }));
+              }
+            }
+          } catch {
+            inFlight.delete(c.id);
+          }
+        }
+      } catch {
+        // ignore network blips
+      }
+    };
+
+    void tick();
+    const id = setInterval(tick, 10_000);
+    return () => {
+      cancelled = true;
+      clearInterval(id);
+    };
+  }, [userKey]);
+
   // Auto-expire pending deposits after 2 hours from address generation.
   const hasPendingDeposits = state.deposits.some((d) => d.status === "PENDING");
   useEffect(() => {
