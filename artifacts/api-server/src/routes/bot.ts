@@ -1,4 +1,8 @@
 import { Router, type IRouter } from "express";
+import {
+  isActivated,
+  recordActivation,
+} from "../lib/botActivationsStore";
 
 const router: IRouter = Router();
 
@@ -14,7 +18,7 @@ function constantTimeEqual(a: string, b: string): boolean {
   return result === 0;
 }
 
-router.post("/upload", (req, res) => {
+router.post("/upload", async (req, res) => {
   if (!EXPECTED_KEY) {
     req.log.error(
       "BOT_UNLOCK_KEY env var is not configured; bot uploads are disabled",
@@ -25,11 +29,10 @@ router.post("/upload", (req, res) => {
     });
   }
 
-  const body = req.body as unknown;
+  const body = (req.body ?? {}) as { key?: unknown; userId?: unknown };
   const submitted =
-    body && typeof body === "object" && "key" in body
-      ? String((body as { key: unknown }).key ?? "").trim()
-      : "";
+    typeof body.key === "string" ? body.key.trim() : "";
+  const userId = typeof body.userId === "string" ? body.userId.trim() : "";
 
   if (!submitted) {
     return res
@@ -46,7 +49,25 @@ router.post("/upload", (req, res) => {
     });
   }
 
+  if (userId) {
+    try {
+      await recordActivation(userId);
+      req.log.info({ userId }, "Bot activation recorded");
+    } catch (err) {
+      req.log.warn({ err, userId }, "Failed to record bot activation");
+    }
+  }
+
   return res.json({ ok: true });
+});
+
+router.get("/activated", async (req, res) => {
+  const userId = String(req.query.userId ?? "").trim();
+  if (!userId) {
+    return res.status(400).json({ ok: false, error: "userId required" });
+  }
+  const activated = await isActivated(userId);
+  return res.json({ ok: true, activated });
 });
 
 router.get("/health", (_req, res) => {

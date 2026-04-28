@@ -333,7 +333,7 @@ export function useTradingBot() {
         const res = await fetch("/api/bot/upload", {
           method: "POST",
           headers: { "content-type": "application/json" },
-          body: JSON.stringify({ key: trimmed }),
+          body: JSON.stringify({ key: trimmed, userId: userKey }),
         });
         const data = (await res.json().catch(() => null)) as
           | { ok?: boolean; error?: string }
@@ -356,8 +356,33 @@ export function useTradingBot() {
         };
       }
     },
-    [],
+    [userKey],
   );
+
+  // Restore activation from server: passkey is entered once per user, ever.
+  useEffect(() => {
+    if (!userKey || userKey === "anon") return;
+    let cancelled = false;
+    (async () => {
+      try {
+        const r = await fetch(
+          `/api/bot/activated?userId=${encodeURIComponent(userKey)}`,
+        );
+        if (!r.ok) return;
+        const data = (await r.json().catch(() => null)) as
+          | { ok?: boolean; activated?: boolean }
+          | null;
+        if (!cancelled && data?.ok && data.activated === true) {
+          setState((s) => (s.unlocked ? s : { ...s, unlocked: true }));
+        }
+      } catch {
+        // Network error — leave local state as-is.
+      }
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, [userKey]);
 
   const lockBot = useCallback(
     () => setState((s) => ({ ...s, isRunning: false, unlocked: false })),
