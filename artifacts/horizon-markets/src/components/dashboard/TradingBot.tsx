@@ -22,6 +22,7 @@ import {
   type BotPair,
   TIMEFRAME_OPTIONS,
 } from "@/hooks/useTradingBot";
+import { MinimumBalanceDialog } from "@/components/dashboard/MinimumBalanceDialog";
 
 const PAIR_OPTIONS: { value: BotPair; label: string }[] = [
   { value: "BOTH", label: "Both" },
@@ -63,15 +64,36 @@ function timeAgo(ms: number) {
   return `${h}h ago`;
 }
 
-export function TradingBot() {
+export function TradingBot({
+  onDepositClick,
+}: {
+  onDepositClick?: () => void;
+}) {
   const bot = useTradingBot();
+  const [minBalanceOpen, setMinBalanceOpen] = useState(false);
 
   if (!bot.unlocked) {
     return <BotLockScreen onUnlock={bot.unlockBot} />;
   }
 
+  const handleStartClick = () => {
+    if (bot.balance <= 0) return;
+    if (!bot.meetsMinimumBalance) {
+      setMinBalanceOpen(true);
+      return;
+    }
+    bot.start();
+  };
+
   return (
     <Card className="bg-[#0c0c0c] border-white/5 p-6 relative overflow-hidden">
+      <MinimumBalanceDialog
+        open={minBalanceOpen}
+        onOpenChange={setMinBalanceOpen}
+        required={bot.requiredMinimumBalance}
+        current={bot.balance}
+        onDepositClick={() => onDepositClick?.()}
+      />
       <div className="absolute -top-20 -right-20 w-64 h-64 bg-primary/5 rounded-full blur-3xl pointer-events-none" />
 
       <div className="flex flex-col md:flex-row md:items-start md:justify-between gap-4 mb-6 relative">
@@ -133,7 +155,7 @@ export function TradingBot() {
           ) : (
             <Button
               size="sm"
-              onClick={bot.start}
+              onClick={handleStartClick}
               disabled={bot.balance <= 0}
               title={
                 bot.balance <= 0

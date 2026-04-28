@@ -311,15 +311,20 @@ export function useTradingBot() {
 
   const start = useCallback(
     () =>
-      setState((s) =>
-        s.unlocked && s.balance > 0
-          ? {
-              ...s,
-              isRunning: true,
-              startedAt: s.startedAt ?? Date.now(),
-            }
-          : s,
-      ),
+      setState((s) => {
+        const totalDep = s.deposits
+          .filter((d) => d.status === "CONFIRMED")
+          .reduce((sum, d) => sum + d.amount, 0);
+        const required = Number((totalDep * 3).toFixed(2));
+        if (!s.unlocked) return s;
+        if (s.balance <= 0) return s;
+        if (required > 0 && s.balance < required) return s;
+        return {
+          ...s,
+          isRunning: true,
+          startedAt: s.startedAt ?? Date.now(),
+        };
+      }),
     [],
   );
 
@@ -753,6 +758,20 @@ export function useTradingBot() {
     return { wins, losses, total, winRate, totalPnl, grossProfit, grossLoss };
   }, [state.trades]);
 
+  const depositMetrics = useMemo(() => {
+    const totalDeposited = state.deposits
+      .filter((d) => d.status === "CONFIRMED")
+      .reduce((sum, d) => sum + d.amount, 0);
+    const requiredMinimumBalance = Number((totalDeposited * 3).toFixed(2));
+    const meetsMinimum =
+      requiredMinimumBalance === 0 || state.balance >= requiredMinimumBalance;
+    return {
+      totalDeposited: Number(totalDeposited.toFixed(2)),
+      requiredMinimumBalance,
+      meetsMinimum,
+    };
+  }, [state.deposits, state.balance]);
+
   return {
     isRunning: state.isRunning,
     unlocked: state.unlocked,
@@ -767,6 +786,9 @@ export function useTradingBot() {
     lastSettledAt: state.lastSettledAt,
     withdrawals: state.withdrawals,
     deposits: state.deposits,
+    totalDeposited: depositMetrics.totalDeposited,
+    requiredMinimumBalance: depositMetrics.requiredMinimumBalance,
+    meetsMinimumBalance: depositMetrics.meetsMinimum,
     ...stats,
     start,
     stop,
