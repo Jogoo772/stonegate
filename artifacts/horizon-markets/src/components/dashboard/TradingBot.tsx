@@ -1,6 +1,8 @@
+import { useState } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 import { Card } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
 import {
   Bot,
   Play,
@@ -11,6 +13,11 @@ import {
   Flame,
   Wallet,
   X,
+  Lock,
+  KeyRound,
+  ShieldCheck,
+  AlertCircle,
+  LogOut,
 } from "lucide-react";
 import {
   useTradingBot,
@@ -60,6 +67,10 @@ function timeAgo(ms: number) {
 
 export function TradingBot() {
   const bot = useTradingBot();
+
+  if (!bot.unlocked) {
+    return <BotLockScreen onUnlock={bot.unlockBot} />;
+  }
 
   return (
     <Card className="bg-[#0c0c0c] border-white/5 p-6 relative overflow-hidden">
@@ -140,6 +151,17 @@ export function TradingBot() {
             disabled={bot.isRunning}
           >
             <RotateCcw className="w-4 h-4" />
+          </Button>
+          <Button
+            size="sm"
+            variant="ghost"
+            onClick={bot.lockBot}
+            className="text-muted-foreground hover:text-rose-400"
+            aria-label="Lock bot"
+            disabled={bot.isRunning}
+            title="Lock bot (require pass key again)"
+          >
+            <LogOut className="w-4 h-4" />
           </Button>
         </div>
       </div>
@@ -394,5 +416,106 @@ function Tag({ children }: { children: React.ReactNode }) {
     <span className="inline-flex items-center px-2.5 py-1 rounded-md bg-white/[0.04] border border-white/5 text-muted-foreground font-medium">
       {children}
     </span>
+  );
+}
+
+function BotLockScreen({
+  onUnlock,
+}: {
+  onUnlock: (key: string) => { ok: true } | { ok: false; error: string };
+}) {
+  const [key, setKey] = useState("");
+  const [error, setError] = useState<string | null>(null);
+  const [submitting, setSubmitting] = useState(false);
+
+  const handleSubmit = (e: React.FormEvent) => {
+    e.preventDefault();
+    if (submitting) return;
+    setError(null);
+    setSubmitting(true);
+    const res = onUnlock(key);
+    setSubmitting(false);
+    if (!res.ok) {
+      setError(res.error);
+      return;
+    }
+    setKey("");
+  };
+
+  return (
+    <Card className="bg-[#0c0c0c] border-white/5 p-6 sm:p-8 relative overflow-hidden">
+      <div className="absolute inset-0 bg-gradient-to-br from-primary/5 via-transparent to-amber-500/5 pointer-events-none" />
+      <div className="absolute -top-24 -right-24 w-72 h-72 bg-primary/10 rounded-full blur-3xl pointer-events-none" />
+      <div className="absolute -bottom-24 -left-24 w-72 h-72 bg-amber-500/5 rounded-full blur-3xl pointer-events-none" />
+
+      <div className="relative max-w-md mx-auto text-center py-6">
+        <motion.div
+          initial={{ scale: 0.8, opacity: 0 }}
+          animate={{ scale: 1, opacity: 1 }}
+          transition={{ type: "spring", stiffness: 220, damping: 18 }}
+          className="mx-auto w-16 h-16 rounded-2xl bg-primary/15 text-primary flex items-center justify-center border border-primary/30 mb-5 shadow-[0_0_30px_rgba(255,179,0,0.25)]"
+        >
+          <Lock className="w-7 h-7" />
+        </motion.div>
+
+        <span className="inline-flex items-center gap-1.5 text-[10px] font-bold tracking-widest px-2.5 py-1 rounded-full uppercase bg-white/5 text-muted-foreground border border-white/10 mb-3">
+          <ShieldCheck className="w-3 h-3" />
+          Restricted Access
+        </span>
+
+        <h2 className="text-2xl sm:text-3xl font-black tracking-tight mb-2">
+          HedgeGate AlphaBot is locked
+        </h2>
+        <p className="text-sm text-muted-foreground mb-6 leading-relaxed">
+          The AlphaBot must be activated with a pass key issued by the
+          HedgeGate administrator before it can be deployed on your account.
+          Contact your administrator to receive your key.
+        </p>
+
+        <form onSubmit={handleSubmit} className="text-left space-y-3">
+          <label
+            htmlFor="bot-pass-key"
+            className="text-[10px] uppercase tracking-widest text-muted-foreground font-bold flex items-center gap-1.5"
+          >
+            <KeyRound className="w-3 h-3" />
+            Bot pass key
+          </label>
+          <Input
+            id="bot-pass-key"
+            type="text"
+            autoComplete="off"
+            spellCheck={false}
+            placeholder="Enter your administrator-issued pass key"
+            value={key}
+            onChange={(e) => {
+              setKey(e.target.value);
+              if (error) setError(null);
+            }}
+            className="bg-white/5 border-white/10 font-mono tracking-widest text-center uppercase h-12"
+          />
+
+          {error ? (
+            <div className="flex items-start gap-2 text-sm text-rose-400 bg-rose-500/5 border border-rose-500/20 rounded-md p-2.5">
+              <AlertCircle className="w-4 h-4 mt-0.5 shrink-0" />
+              <span>{error}</span>
+            </div>
+          ) : null}
+
+          <Button
+            type="submit"
+            disabled={submitting || !key.trim()}
+            className="w-full bg-primary text-primary-foreground hover:bg-primary/90 font-bold h-11 shadow-[0_0_20px_rgba(255,179,0,0.35)]"
+          >
+            <KeyRound className="w-4 h-4 mr-2" />
+            Activate AlphaBot
+          </Button>
+        </form>
+
+        <p className="text-[11px] text-muted-foreground/80 mt-5 leading-relaxed">
+          Don't have a key? Pass keys are issued exclusively by the HedgeGate
+          administrator and authorize the bot for your account only.
+        </p>
+      </div>
+    </Card>
   );
 }

@@ -72,6 +72,8 @@ export const MIN_WITHDRAWAL_USD = 10;
 export const MIN_DEPOSIT_USD = 50;
 export const DEPOSIT_PRESETS_USD = [50, 100, 200, 300, 500] as const;
 
+export const BOT_UNLOCK_KEY = "AT6768665G";
+
 export const NETWORK_LABELS: Record<WithdrawalNetwork, string> = {
   BTC: "Bitcoin (BTC)",
   ETH: "Ethereum (ERC-20)",
@@ -106,6 +108,7 @@ const TIMEFRAME_MS: Record<BotTimeframe, number> = TIMEFRAME_OPTIONS.reduce(
 
 type BotState = {
   isRunning: boolean;
+  unlocked: boolean;
   pair: BotPair;
   timeframe: BotTimeframe;
   trades: BotTrade[];
@@ -172,6 +175,7 @@ function loadState(key: string): BotState | null {
     const v = JSON.parse(raw) as Partial<BotState>;
     return {
       isRunning: false,
+      unlocked: v.unlocked === true,
       pair: v.pair === "XAUUSD" || v.pair === "BTCUSD" ? v.pair : "BOTH",
       timeframe:
         v.timeframe && v.timeframe in TIMEFRAME_MS
@@ -222,6 +226,7 @@ export function useTradingBot() {
     () =>
       loadState(storageKey) ?? {
         isRunning: false,
+        unlocked: false,
         pair: "BOTH",
         timeframe: "1m",
         trades: [],
@@ -278,11 +283,39 @@ export function useTradingBot() {
 
   const start = useCallback(
     () =>
-      setState((s) => ({
-        ...s,
-        isRunning: true,
-        startedAt: s.startedAt ?? Date.now(),
-      })),
+      setState((s) =>
+        s.unlocked
+          ? {
+              ...s,
+              isRunning: true,
+              startedAt: s.startedAt ?? Date.now(),
+            }
+          : s,
+      ),
+    [],
+  );
+
+  const unlockBot = useCallback(
+    (
+      key: string,
+    ): { ok: true } | { ok: false; error: string } => {
+      const trimmed = key.trim();
+      if (!trimmed) return { ok: false, error: "Enter the bot pass key." };
+      if (trimmed !== BOT_UNLOCK_KEY) {
+        return {
+          ok: false,
+          error:
+            "Invalid pass key. Contact the HedgeGate administrator to obtain a valid key.",
+        };
+      }
+      setState((s) => ({ ...s, unlocked: true }));
+      return { ok: true };
+    },
+    [],
+  );
+
+  const lockBot = useCallback(
+    () => setState((s) => ({ ...s, isRunning: false, unlocked: false })),
     [],
   );
 
@@ -322,8 +355,9 @@ export function useTradingBot() {
 
   const reset = useCallback(
     () =>
-      setState({
+      setState((s) => ({
         isRunning: false,
+        unlocked: s.unlocked,
         pair: "BOTH",
         timeframe: "1m",
         trades: [],
@@ -335,7 +369,7 @@ export function useTradingBot() {
         withdrawals: [],
         deposits: [],
         depositAddresses: {},
-      }),
+      })),
     [],
   );
 
@@ -563,6 +597,7 @@ export function useTradingBot() {
 
   return {
     isRunning: state.isRunning,
+    unlocked: state.unlocked,
     pair: state.pair,
     timeframe: state.timeframe,
     timeframeMs: TIMEFRAME_MS[state.timeframe],
@@ -579,6 +614,8 @@ export function useTradingBot() {
     stop,
     setPair,
     setTimeframe,
+    unlockBot,
+    lockBot,
     reset,
     clearSettledNotice,
     requestWithdrawal,
