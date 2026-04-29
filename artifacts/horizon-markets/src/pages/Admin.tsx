@@ -16,6 +16,10 @@ import {
   Wallet,
   Banknote,
   PlusCircle,
+  Activity,
+  HardDrive,
+  CloudUpload,
+  Clock,
 } from "lucide-react";
 import {
   NETWORK_LABELS,
@@ -37,7 +41,27 @@ type ListResp =
 
 type Filter = "PENDING" | "APPROVED" | "REJECTED" | "ALL";
 
-type AdminTab = "withdrawals" | "credits";
+type AdminTab = "status" | "withdrawals" | "credits";
+
+type SystemStatus = {
+  apiOk: true;
+  uptimeSeconds: number;
+  serverTime: number;
+  dataDir: string;
+  dataDirBytes: number;
+  dataDirFiles: number;
+  pendingWithdrawals: number;
+  pendingCredits: number;
+  backup: {
+    dir: string;
+    latestFilename: string | null;
+    latestAt: number | null;
+    latestBytes: number | null;
+    totalBackups: number;
+    offsiteLastUploadAt: number | null;
+    offsiteLastStatus: "ok" | "failed" | null;
+  };
+};
 
 type CreditStatus = "PENDING" | "APPLIED" | "CANCELLED";
 
@@ -181,7 +205,7 @@ function AdminConsole({
   adminKey: string;
   onSignOut: () => void;
 }) {
-  const [tab, setTab] = useState<AdminTab>("withdrawals");
+  const [tab, setTab] = useState<AdminTab>("status");
   const [items, setItems] = useState<AdminWithdrawal[]>([]);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -347,6 +371,7 @@ function AdminConsole({
         <div className="flex items-center gap-2 mb-6 border-b border-white/5">
           {(
             [
+              { id: "status", label: "Status", icon: Activity },
               { id: "withdrawals", label: "Withdrawals", icon: Banknote },
               { id: "credits", label: "Manual credit", icon: PlusCircle },
             ] as { id: AdminTab; label: string; icon: typeof Banknote }[]
@@ -373,7 +398,9 @@ function AdminConsole({
           ))}
         </div>
 
-        {tab === "credits" ? (
+        {tab === "status" ? (
+          <StatusPanel adminKey={adminKey} onSignOut={onSignOut} />
+        ) : tab === "credits" ? (
           <CreditsPanel adminKey={adminKey} onSignOut={onSignOut} />
         ) : (
           <WithdrawalsPanel
@@ -936,5 +963,310 @@ function CopyableAddress({ value }: { value: string }) {
       <Copy className="w-3 h-3" />
       {copied ? <span className="sr-only">Copied</span> : null}
     </button>
+  );
+}
+
+function fmtBytes(b: number): string {
+  if (b < 1024) return `${b} B`;
+  if (b < 1024 * 1024) return `${(b / 1024).toFixed(1)} KB`;
+  if (b < 1024 * 1024 * 1024) return `${(b / 1024 / 1024).toFixed(1)} MB`;
+  return `${(b / 1024 / 1024 / 1024).toFixed(2)} GB`;
+}
+
+function fmtUptime(s: number): string {
+  if (s < 60) return `${s}s`;
+  if (s < 3600) return `${Math.floor(s / 60)}m ${s % 60}s`;
+  if (s < 86400) return `${Math.floor(s / 3600)}h ${Math.floor((s % 3600) / 60)}m`;
+  return `${Math.floor(s / 86400)}d ${Math.floor((s % 86400) / 3600)}h`;
+}
+
+function fmtRelative(ts: number | null, now: number): string {
+  if (!ts) return "never";
+  const diff = Math.max(0, Math.floor((now - ts) / 1000));
+  if (diff < 60) return `${diff}s ago`;
+  if (diff < 3600) return `${Math.floor(diff / 60)}m ago`;
+  if (diff < 86400) return `${Math.floor(diff / 3600)}h ago`;
+  return `${Math.floor(diff / 86400)}d ago`;
+}
+
+function StatusPanel({
+  adminKey,
+  onSignOut,
+}: {
+  adminKey: string;
+  onSignOut: () => void;
+}) {
+  const [status, setStatus] = useState<SystemStatus | null>(null);
+  const [error, setError] = useState<string | null>(null);
+  const [loading, setLoading] = useState(false);
+  const [now, setNow] = useState<number>(Date.now());
+
+  const fetchStatus = useCallback(async () => {
+    setLoading(true);
+    try {
+      const r = await fetch("/api/admin/status/", {
+        headers: { "x-admin-key": adminKey },
+      });
+      if (r.status === 401) {
+        onSignOut();
+        return;
+      }
+      const data = (await r.json().catch(() => null)) as
+        | { ok: true; status: SystemStatus }
+        | { ok: false; error?: string }
+        | null;
+      if (!r.ok || !data || data.ok !== true) {
+        setError(
+          (data && "error" in data && data.error) ||
+            `Server returned ${r.status}`,
+        );
+        return;
+      }
+      setError(null);
+      setStatus(data.status);
+    } catch (e) {
+      setError(e instanceof Error ? e.message : "Network error");
+    } finally {
+      setLoading(false);
+    }
+  }, [adminKey, onSignOut]);
+
+  useEffect(() => {
+    void fetchStatus();
+    const id = setInterval(fetchStatus, 10_000);
+    const tick = setInterval(() => setNow(Date.now()), 1_000);
+    return () => {
+      clearInterval(id);
+      clearInterval(tick);
+    };
+  }, [fetchStatus]);
+
+  const apiHealthy = status !== null && error === null;
+
+  // Backup health: green if uploaded within last 30h, amber 30-72h, red >72h or failed.
+  const backupHealth: "green" | "amber" | "red" | "none" = (() => {
+    if (!status) return "none";
+    const last =
+      status.backup.offsiteLastUploadAt ?? status.backup.latestAt ?? null;
+    if (!last) return "none";
+    if (status.backup.offsiteLastStatus === "failed") return "red";
+    const ageHours = (now - last) / 3_600_000;
+    if (ageHours < 30) return "green";
+    if (ageHours < 72) return "amber";
+    return "red";
+  })();
+
+  const apiHealth: "green" | "red" = apiHealthy ? "green" : "red";
+
+  return (
+    <div className="space-y-4">
+      <Card className="bg-card border-border/40 p-5">
+        <div className="flex items-center justify-between mb-4">
+          <div>
+            <h2 className="text-base font-bold tracking-tight">
+              System status
+            </h2>
+            <p className="text-xs text-muted-foreground">
+              Auto-refreshes every 10s. Last fetched{" "}
+              {fmtRelative(status?.serverTime ?? null, now)}.
+            </p>
+          </div>
+          <Button
+            variant="outline"
+            size="sm"
+            onClick={fetchStatus}
+            disabled={loading}
+            className="gap-2"
+          >
+            <RefreshCw
+              className={`w-4 h-4 ${loading ? "animate-spin" : ""}`}
+            />
+            Refresh
+          </Button>
+        </div>
+
+        {error ? (
+          <div className="mb-4 p-3 rounded border border-rose-500/30 bg-rose-500/10 flex items-start gap-2 text-sm text-rose-200">
+            <AlertCircle className="w-4 h-4 mt-0.5" />
+            <span>{error}</span>
+          </div>
+        ) : null}
+
+        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3">
+          <StatusCard
+            icon={Activity}
+            label="API server"
+            value={apiHealth === "green" ? "Online" : "Unreachable"}
+            sub={
+              status
+                ? `Up ${fmtUptime(status.uptimeSeconds)}`
+                : "Waiting for first response"
+            }
+            health={apiHealth}
+          />
+          <StatusCard
+            icon={CloudUpload}
+            label="Off-box backup"
+            value={
+              status?.backup.offsiteLastUploadAt
+                ? status.backup.offsiteLastStatus === "failed"
+                  ? "Last upload failed"
+                  : `Uploaded ${fmtRelative(
+                      status.backup.offsiteLastUploadAt,
+                      now,
+                    )}`
+                : status?.backup.latestAt
+                  ? `Local only (${fmtRelative(status.backup.latestAt, now)})`
+                  : "Never"
+            }
+            sub={
+              status
+                ? `${status.backup.totalBackups} tarball${
+                    status.backup.totalBackups === 1 ? "" : "s"
+                  } in ${status.backup.dir}`
+                : ""
+            }
+            health={backupHealth}
+          />
+          <StatusCard
+            icon={HardDrive}
+            label="Data folder"
+            value={status ? fmtBytes(status.dataDirBytes) : "—"}
+            sub={
+              status
+                ? `${status.dataDirFiles} file${
+                    status.dataDirFiles === 1 ? "" : "s"
+                  }`
+                : ""
+            }
+            health="green"
+          />
+          <StatusCard
+            icon={Clock}
+            label="Pending queue"
+            value={
+              status
+                ? `${status.pendingWithdrawals + status.pendingCredits}`
+                : "—"
+            }
+            sub={
+              status
+                ? `${status.pendingWithdrawals} withdrawal${
+                    status.pendingWithdrawals === 1 ? "" : "s"
+                  }, ${status.pendingCredits} credit${
+                    status.pendingCredits === 1 ? "" : "s"
+                  }`
+                : ""
+            }
+            health={
+              status &&
+              status.pendingWithdrawals + status.pendingCredits > 0
+                ? "amber"
+                : "green"
+            }
+          />
+        </div>
+      </Card>
+
+      {status ? (
+        <Card className="bg-card border-border/40 p-5">
+          <h3 className="text-sm font-bold tracking-tight mb-3">Details</h3>
+          <dl className="text-xs space-y-2">
+            <DetailRow label="Data directory" value={status.dataDir} mono />
+            <DetailRow label="Backup directory" value={status.backup.dir} mono />
+            <DetailRow
+              label="Latest backup file"
+              value={status.backup.latestFilename ?? "(none)"}
+              mono
+            />
+            <DetailRow
+              label="Latest backup size"
+              value={
+                status.backup.latestBytes !== null
+                  ? fmtBytes(status.backup.latestBytes)
+                  : "—"
+              }
+            />
+            <DetailRow
+              label="Off-box last attempt"
+              value={
+                status.backup.offsiteLastUploadAt
+                  ? `${new Date(status.backup.offsiteLastUploadAt).toLocaleString()} (${status.backup.offsiteLastStatus ?? "unknown"})`
+                  : "(no off-box backup configured or no log yet)"
+              }
+            />
+            <DetailRow
+              label="Server time"
+              value={new Date(status.serverTime).toLocaleString()}
+            />
+          </dl>
+        </Card>
+      ) : null}
+    </div>
+  );
+}
+
+function StatusCard({
+  icon: Icon,
+  label,
+  value,
+  sub,
+  health,
+}: {
+  icon: typeof Activity;
+  label: string;
+  value: string;
+  sub?: string;
+  health: "green" | "amber" | "red" | "none";
+}) {
+  const dot =
+    health === "green"
+      ? "bg-emerald-400"
+      : health === "amber"
+        ? "bg-amber-400"
+        : health === "red"
+          ? "bg-rose-500"
+          : "bg-muted-foreground/40";
+  return (
+    <div className="rounded-lg border border-border/40 bg-background/40 p-4">
+      <div className="flex items-center justify-between mb-2">
+        <div className="flex items-center gap-2 text-muted-foreground">
+          <Icon className="w-4 h-4" />
+          <span className="text-xs font-semibold uppercase tracking-wider">
+            {label}
+          </span>
+        </div>
+        <span className={`w-2 h-2 rounded-full ${dot}`} />
+      </div>
+      <div className="text-base font-bold tracking-tight truncate">
+        {value}
+      </div>
+      {sub ? (
+        <div className="text-xs text-muted-foreground mt-1 truncate">
+          {sub}
+        </div>
+      ) : null}
+    </div>
+  );
+}
+
+function DetailRow({
+  label,
+  value,
+  mono,
+}: {
+  label: string;
+  value: string;
+  mono?: boolean;
+}) {
+  return (
+    <div className="flex flex-col sm:flex-row sm:items-baseline gap-1 sm:gap-3 border-b border-white/5 pb-2 last:border-b-0 last:pb-0">
+      <dt className="text-muted-foreground sm:w-44 shrink-0">{label}</dt>
+      <dd
+        className={`break-all ${mono ? "font-mono" : ""} text-foreground/90`}
+      >
+        {value}
+      </dd>
+    </div>
   );
 }

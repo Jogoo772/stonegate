@@ -2,7 +2,14 @@
 # ----------------------------------------------------------------------------
 # HedgeGate one-shot VPS deploy script
 #
-# Tested on: Ubuntu 22.04 / 24.04 (Shinjiru KVM VPS, fresh image, root SSH).
+# Provider-agnostic: works on ANY fresh Ubuntu 22.04 / 24.04 VPS with root SSH.
+# Confirmed compatible with Shinjiru, Servury, Hetzner, Vultr, Linode, OVH,
+# DigitalOcean, AWS Lightsail, Contabo, Oracle Cloud Free Tier, and similar
+# KVM/Cloud-VPS plans. Will NOT work on shared/cPanel-only hosting because
+# Node.js needs a real Linux box.
+#
+# Minimum specs: 2 GB RAM, 1 vCPU, 20 GB SSD.
+#
 # What it does:
 #   1. Installs Node 20, pnpm, pm2, nginx, ufw, certbot.
 #   2. Clones (or updates) the repo into /var/www/hedgegate.
@@ -16,10 +23,10 @@
 #  10. Optionally uploads each nightly backup off-box to a Backblaze B2 bucket
 #      (or any S3-compatible store) via rclone, with its own retention.
 #
-# Usage (run as root on a fresh VPS):
+# Usage (run as root on a fresh VPS, regardless of provider):
 #
-#   wget https://raw.githubusercontent.com/<you>/<repo>/main/deploy-shinjiru.sh
-#   chmod +x deploy-shinjiru.sh
+#   wget https://raw.githubusercontent.com/<you>/<repo>/main/deploy.sh
+#   chmod +x deploy.sh
 #
 #   DOMAIN=hedgegate.example.com \
 #   EMAIL=you@example.com \
@@ -31,7 +38,7 @@
 #   BOT_UNLOCK_KEY='AT6768665G' \
 #   CLERK_PUBLISHABLE_KEY='pk_live_...' \
 #   CLERK_SECRET_KEY='sk_live_...' \
-#     ./deploy-shinjiru.sh
+#     ./deploy.sh
 #
 # Optional off-box backup (Backblaze B2) — append these to enable:
 #   B2_BUCKET='hedgegate-backups' \
@@ -46,6 +53,13 @@
 # To redeploy after pushing new commits, just re-run the script. It is
 # idempotent: it pulls the latest code, rebuilds, restarts pm2, and reloads
 # nginx without touching your .env, certs, or data folder.
+#
+# Provider-specific notes:
+#   - DigitalOcean / AWS / GCP: also open ports 80 + 443 in the cloud
+#     firewall (the script's ufw rules only cover the host firewall).
+#   - Oracle Cloud Free Tier: edit the VCN's Ingress Rules to allow 80/443.
+#   - Servury / Shinjiru / Hetzner / Vultr / Linode / OVH / Contabo: nothing
+#     extra — the host firewall is the only firewall.
 # ----------------------------------------------------------------------------
 
 set -euo pipefail
@@ -377,7 +391,7 @@ else
 fi
 echo
 echo "Redeploy after a 'git push':"
-echo "  ./deploy-shinjiru.sh   # same env vars; will pull, rebuild, restart"
+echo "  ./deploy.sh   # same env vars; will pull, rebuild, restart"
 echo
 echo "Post-deploy checklist:"
 echo "  - Add https://$DOMAIN to your Clerk allowed origins."
