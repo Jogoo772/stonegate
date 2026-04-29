@@ -13,6 +13,8 @@
 #   7. Opens the firewall for SSH and HTTP/HTTPS.
 #   8. Issues a Let's Encrypt cert and switches the site to HTTPS.
 #   9. Schedules a daily tarball backup of the api-server data folder.
+#  10. Optionally uploads each nightly backup off-box to a Backblaze B2 bucket
+#      (or any S3-compatible store) via rclone, with its own retention.
 #
 # Usage (run as root on a fresh VPS):
 #
@@ -30,6 +32,16 @@
 #   CLERK_PUBLISHABLE_KEY='pk_live_...' \
 #   CLERK_SECRET_KEY='sk_live_...' \
 #     ./deploy-shinjiru.sh
+#
+# Optional off-box backup (Backblaze B2) — append these to enable:
+#   B2_BUCKET='hedgegate-backups' \
+#   B2_KEY_ID='0010abc...' \
+#   B2_APPLICATION_KEY='K001xyz...' \
+#   B2_REMOTE_RETENTION_DAYS=30 \
+#
+# Other S3-compatible stores (Cloudflare R2, AWS S3, Wasabi, etc.) work too;
+# set RCLONE_BACKEND=s3 plus the standard S3 vars (S3_ENDPOINT, S3_ACCESS_KEY,
+# S3_SECRET_KEY, S3_REGION) instead of the B2_* set.
 #
 # To redeploy after pushing new commits, just re-run the script. It is
 # idempotent: it pulls the latest code, rebuilds, restarts pm2, and reloads
@@ -66,6 +78,10 @@ API_PORT="${API_PORT:-8080}"
 PM2_NAME="${PM2_NAME:-hedgegate-api}"
 NGINX_SITE="${NGINX_SITE:-hedgegate}"
 BACKUP_DIR="${BACKUP_DIR:-/root/hedgegate-backups}"
+LOCAL_RETENTION_DAYS="${LOCAL_RETENTION_DAYS:-14}"
+B2_REMOTE_RETENTION_DAYS="${B2_REMOTE_RETENTION_DAYS:-30}"
+RCLONE_BACKEND="${RCLONE_BACKEND:-}"
+RCLONE_REMOTE_NAME="hedgegate-offsite"
 
 info "Domain:          $DOMAIN"
 info "App directory:   $APP_DIR"
@@ -232,9 +248,115 @@ certbot --nginx -n --agree-tos -m "$EMAIL" \
 
 # ---- 9. daily backups -------------------------------------------------------
 mkdir -p "$BACKUP_DIR"
-CRON_LINE="0 3 * * * tar -czf $BACKUP_DIR/data-\$(date +\\%F).tgz -C $APP_DIR/artifacts/api-server data && find $BACKUP_DIR -name 'data-*.tgz' -mtime +14 -delete"
-( crontab -l 2>/dev/null | grep -v "$BACKUP_DIR" ; echo "$CRON_LINE" ) | crontab -
-ok "Daily 03:00 backup scheduled to $BACKUP_DIR (14-day retention)."
+
+# Decide whether off-box backups are configured.
+OFFSITE_MODE="none"
+if [ -n "${B2_BUCKET:-}" ] && [ -n "${B2_KEY_ID:-}" ] && [ -n "${B2_APPLICATION_KEY:-}" ]; then
+  OFFSITE_MODE="b2"
+elif [ "$RCLONE_BACKEND" = "s3" ] && [ -n "${S3_ENDPOINT:-}" ] && [ -n "${S3_ACCESS_KEY:-}" ] && [ -n "${S3_SECRET_KEY:-}" ] && [ -n "${S3_BUCKET:-}" ]; then
+  OFFSITE_MODE="s3"
+fi
+
+if [ "$OFFSITE_MODE" != "none" ]; then
+  if ! command -v rclone >/dev/null 2>&1; then
+    info "Installing rclone for off-box backups..."
+    apt-get install -y -qq rclone
+  fi
+
+  RCLONE_CONF="/root/.config/rclone/rclone.conf"
+  mkdir -p "$(dirname "$RCLONE_CONF")"
+  chmod 700 "$(dirname "$RCLONE_CONF")"
+
+  # Strip any prior remote with the same name so re-runs don't duplicate it.
+  if [ -f "$RCLONE_CONF" ]; then
+    awk -v name="[$RCLONE_REMOTE_NAME]" '
+      $0 == name { skip=1; next }
+      /^\[/ { skip=0 }
+      !skip { print }
+    ' "$RCLONE_CONF" > "$RCLONE_CONF.tmp" && mv "$RCLONE_CONF.tmp" "$RCLONE_CONF"
+  fi
+  touch "$RCLONE_CONF"
+  chmod 600 "$RCLONE_CONF"
+
+  if [ "$OFFSITE_MODE" = "b2" ]; then
+    info "Configuring rclone remote '$RCLONE_REMOTE_NAME' for Backblaze B2..."
+    cat >> "$RCLONE_CONF" <<EOF
+
+[$RCLONE_REMOTE_NAME]
+type = b2
+account = $B2_KEY_ID
+key = $B2_APPLICATION_KEY
+hard_delete = true
+EOF
+    REMOTE_PATH="$RCLONE_REMOTE_NAME:$B2_BUCKET/hedgegate"
+    OFFSITE_LABEL="Backblaze B2 bucket '$B2_BUCKET'"
+  else
+    info "Configuring rclone remote '$RCLONE_REMOTE_NAME' for S3-compatible store..."
+    cat >> "$RCLONE_CONF" <<EOF
+
+[$RCLONE_REMOTE_NAME]
+type = s3
+provider = Other
+endpoint = $S3_ENDPOINT
+access_key_id = $S3_ACCESS_KEY
+secret_access_key = $S3_SECRET_KEY
+region = ${S3_REGION:-auto}
+acl = private
+EOF
+    REMOTE_PATH="$RCLONE_REMOTE_NAME:$S3_BUCKET/hedgegate"
+    OFFSITE_LABEL="S3 bucket '$S3_BUCKET' at $S3_ENDPOINT"
+  fi
+
+  # Verify the remote is reachable so we fail fast (not at 3 AM).
+  if rclone --config "$RCLONE_CONF" lsd "$RCLONE_REMOTE_NAME:" >/dev/null 2>&1; then
+    ok "rclone remote '$RCLONE_REMOTE_NAME' authenticated."
+  else
+    warn "rclone could not list remote '$RCLONE_REMOTE_NAME:'. Check your B2/S3 credentials."
+    warn "Off-box backups are configured but the first upload may fail. Logs: $BACKUP_DIR/offsite.log"
+  fi
+
+  # Wrapper script: tar -> upload -> prune local -> prune remote (atomic-ish).
+  BACKUP_SCRIPT="/usr/local/bin/hedgegate-backup.sh"
+  cat > "$BACKUP_SCRIPT" <<EOF
+#!/usr/bin/env bash
+set -euo pipefail
+TS="\$(date +%F)"
+LOCAL="$BACKUP_DIR/data-\${TS}.tgz"
+LOG="$BACKUP_DIR/offsite.log"
+
+mkdir -p "$BACKUP_DIR"
+tar -czf "\$LOCAL" -C "$APP_DIR/artifacts/api-server" data
+
+# Upload to off-box store.
+{
+  echo "[\$(date -Iseconds)] uploading \$LOCAL to $REMOTE_PATH/"
+  rclone --config "$RCLONE_CONF" copy "\$LOCAL" "$REMOTE_PATH/" --quiet
+  echo "[\$(date -Iseconds)] upload ok"
+} >> "\$LOG" 2>&1 || echo "[\$(date -Iseconds)] upload FAILED — see above" >> "\$LOG"
+
+# Prune local copies older than $LOCAL_RETENTION_DAYS days.
+find "$BACKUP_DIR" -maxdepth 1 -name 'data-*.tgz' -mtime +$LOCAL_RETENTION_DAYS -delete
+
+# Prune remote copies older than $B2_REMOTE_RETENTION_DAYS days.
+{
+  rclone --config "$RCLONE_CONF" delete "$REMOTE_PATH/" \\
+    --min-age ${B2_REMOTE_RETENTION_DAYS}d --quiet
+} >> "\$LOG" 2>&1 || true
+EOF
+  chmod 700 "$BACKUP_SCRIPT"
+
+  CRON_LINE="0 3 * * * $BACKUP_SCRIPT"
+  ok "Off-box backups: $OFFSITE_LABEL (remote retention ${B2_REMOTE_RETENTION_DAYS}d)"
+else
+  # Local-only fallback (matches previous behavior).
+  CRON_LINE="0 3 * * * tar -czf $BACKUP_DIR/data-\$(date +\\%F).tgz -C $APP_DIR/artifacts/api-server data && find $BACKUP_DIR -maxdepth 1 -name 'data-*.tgz' -mtime +$LOCAL_RETENTION_DAYS -delete"
+  warn "Off-box backups are NOT configured — backups stay on this VPS only."
+  warn "Set B2_BUCKET + B2_KEY_ID + B2_APPLICATION_KEY (or RCLONE_BACKEND=s3 + S3_*) and re-run to enable."
+fi
+
+# Replace any prior cron entry for our backup dir / wrapper to keep it idempotent.
+( crontab -l 2>/dev/null | grep -v -e "$BACKUP_DIR" -e "hedgegate-backup.sh" ; echo "$CRON_LINE" ) | crontab -
+ok "Daily 03:00 backup scheduled (local retention ${LOCAL_RETENTION_DAYS}d) -> $BACKUP_DIR"
 
 # ---- summary ----------------------------------------------------------------
 echo
@@ -245,7 +367,14 @@ echo "  Admin:      https://$DOMAIN/admin   (header x-admin-key: $ADMIN_KEY)"
 echo "  Api logs:   pm2 logs $PM2_NAME"
 echo "  Restart:    pm2 restart $PM2_NAME"
 echo "  Data dir:   $APP_DIR/artifacts/api-server/data"
-echo "  Backups:    $BACKUP_DIR"
+echo "  Backups:    $BACKUP_DIR  (local retention ${LOCAL_RETENTION_DAYS}d)"
+if [ "$OFFSITE_MODE" != "none" ]; then
+  echo "  Off-box:    $OFFSITE_LABEL  (remote retention ${B2_REMOTE_RETENTION_DAYS}d)"
+  echo "  Off-box log: $BACKUP_DIR/offsite.log"
+  echo "  Test now:   /usr/local/bin/hedgegate-backup.sh && tail $BACKUP_DIR/offsite.log"
+else
+  echo "  Off-box:    DISABLED (local-only backups)"
+fi
 echo
 echo "Redeploy after a 'git push':"
 echo "  ./deploy-shinjiru.sh   # same env vars; will pull, rebuild, restart"
