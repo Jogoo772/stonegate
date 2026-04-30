@@ -199,17 +199,22 @@ if ! systemctl list-unit-files | grep -q '^pm2-root\.service'; then
   info "Registering pm2 with systemd..."
   # pm2 prints a `sudo env PATH=...` line we need to execute. Older versions
   # prefixed it with a literal `$` (shell-prompt convention), which broke a
-  # naive `... | bash`. Match the actual command line directly instead.
-  PM2_STARTUP_CMD=$(pm2 startup systemd -u root --hp /root 2>&1 | \
-    grep -oE 'sudo env PATH=[^[:space:]]+ pm2 startup systemd -u root --hp /root' | \
-    tail -n 1)
+  # naive `... | bash`. We capture the raw output, then look for the command.
+  # Pipefail is temporarily disabled so a missing match isn't fatal.
+  set +o pipefail
+  PM2_STARTUP_RAW=$(pm2 startup systemd -u root --hp /root 2>&1 || true)
+  PM2_STARTUP_CMD=$(printf '%s\n' "$PM2_STARTUP_RAW" \
+    | grep -oE 'sudo env PATH=[^[:space:]]+ pm2 startup systemd -u root --hp /root' \
+    | tail -n 1 || true)
+  set -o pipefail
   if [ -n "$PM2_STARTUP_CMD" ]; then
-    eval "$PM2_STARTUP_CMD" >/dev/null
+    eval "$PM2_STARTUP_CMD" >/dev/null 2>&1 || \
+      warn "pm2 startup eval returned non-zero; service may already be installed."
   else
-    # Fallback for newer pm2 that auto-installs the systemd unit itself.
-    pm2 startup systemd -u root --hp /root >/dev/null 2>&1 || true
+    # Newer pm2 self-installs the systemd unit. Treat any result as best-effort.
+    info "pm2 self-installed the systemd unit (or it was already present)."
   fi
-  pm2 save >/dev/null
+  pm2 save >/dev/null 2>&1 || true
 fi
 ok "pm2 process '$PM2_NAME' is running."
 
