@@ -153,7 +153,7 @@ info "Building frontend (horizon-markets)..."
 # BASE_PATH=/ since nginx serves the SPA at the root.
 PORT=5173 BASE_PATH=/ pnpm --filter @workspace/horizon-markets run build
 
-FRONTEND_DIST="$APP_DIR/artifacts/horizon-markets/dist"
+FRONTEND_DIST="$APP_DIR/artifacts/horizon-markets/dist/public"
 [ -d "$FRONTEND_DIST" ] || die "Frontend build did not produce $FRONTEND_DIST"
 ok "Builds complete."
 
