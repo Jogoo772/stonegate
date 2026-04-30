@@ -27,7 +27,7 @@ import {
   type WithdrawalNetwork,
 } from "@/hooks/useTradingBot";
 
-const ADMIN_KEY_STORAGE = "hedgegate:admin-key:v1";
+const ADMIN_KEY_STORAGE = "stonegate:admin-key:v1";
 
 type AdminWithdrawal = Withdrawal & {
   userId: string;

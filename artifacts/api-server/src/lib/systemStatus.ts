@@ -5,14 +5,14 @@ import { listAll as listAllCredits } from "./creditsStore";
 import { listAll as listAllWithdrawals } from "./withdrawalsStore";
 
 const DATA_DIR =
-  process.env["HEDGEGATE_DATA_DIR"] ??
+  process.env["STONEGATE_DATA_DIR"] ??
   path.resolve(process.cwd(), "data");
 
 const BACKUP_DIR =
-  process.env["HEDGEGATE_BACKUP_DIR"] ?? "/root/hedgegate-backups";
+  process.env["STONEGATE_BACKUP_DIR"] ?? "/root/stonegate-backups";
 
 const OFFSITE_LOG =
-  process.env["HEDGEGATE_OFFSITE_LOG"] ?? path.join(BACKUP_DIR, "offsite.log");
+  process.env["STONEGATE_OFFSITE_LOG"] ?? path.join(BACKUP_DIR, "offsite.log");
 
 const PROCESS_STARTED_AT = Date.now();
 

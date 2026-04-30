@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 # ----------------------------------------------------------------------------
-# HedgeGate one-shot VPS deploy script
+# Stonegate one-shot VPS deploy script
 #
 # Provider-agnostic: works on ANY fresh Ubuntu 22.04 / 24.04 VPS with root SSH.
 # Confirmed compatible with Shinjiru, Servury, Hetzner, Vultr, Linode, OVH,
@@ -12,9 +12,9 @@
 #
 # What it does:
 #   1. Installs Node 20, pnpm, pm2, nginx, ufw, certbot.
-#   2. Clones (or updates) the repo into /var/www/hedgegate.
+#   2. Clones (or updates) the repo into /var/www/stonegate.
 #   3. Installs deps and builds both the api-server and the React frontend.
-#   4. Writes /var/www/hedgegate/artifacts/api-server/.env from your secrets.
+#   4. Writes /var/www/stonegate/artifacts/api-server/.env from your secrets.
 #   5. Starts the api-server under pm2, saves state, and registers it on boot.
 #   6. Drops in an nginx vhost (SPA + /api reverse proxy) and reloads.
 #   7. Opens the firewall for SSH and HTTP/HTTPS.
@@ -28,7 +28,7 @@
 #   wget https://raw.githubusercontent.com/<you>/<repo>/main/deploy.sh
 #   chmod +x deploy.sh
 #
-#   DOMAIN=hedgegate.example.com \
+#   DOMAIN=stonegate.example.com \
 #   EMAIL=you@example.com \
 #   REPO_URL=https://github.com/<you>/<repo>.git \
 #   GIT_BRANCH=main \
@@ -41,7 +41,7 @@
 #     ./deploy.sh
 #
 # Optional off-box backup (Backblaze B2) — append these to enable:
-#   B2_BUCKET='hedgegate-backups' \
+#   B2_BUCKET='stonegate-backups' \
 #   B2_KEY_ID='0010abc...' \
 #   B2_APPLICATION_KEY='K001xyz...' \
 #   B2_REMOTE_RETENTION_DAYS=30 \
@@ -87,15 +87,15 @@ require_var CLERK_PUBLISHABLE_KEY
 require_var CLERK_SECRET_KEY
 
 GIT_BRANCH="${GIT_BRANCH:-main}"
-APP_DIR="${APP_DIR:-/var/www/hedgegate}"
+APP_DIR="${APP_DIR:-/var/www/stonegate}"
 API_PORT="${API_PORT:-8080}"
-PM2_NAME="${PM2_NAME:-hedgegate-api}"
-NGINX_SITE="${NGINX_SITE:-hedgegate}"
-BACKUP_DIR="${BACKUP_DIR:-/root/hedgegate-backups}"
+PM2_NAME="${PM2_NAME:-stonegate-api}"
+NGINX_SITE="${NGINX_SITE:-stonegate}"
+BACKUP_DIR="${BACKUP_DIR:-/root/stonegate-backups}"
 LOCAL_RETENTION_DAYS="${LOCAL_RETENTION_DAYS:-14}"
 B2_REMOTE_RETENTION_DAYS="${B2_REMOTE_RETENTION_DAYS:-30}"
 RCLONE_BACKEND="${RCLONE_BACKEND:-}"
-RCLONE_REMOTE_NAME="hedgegate-offsite"
+RCLONE_REMOTE_NAME="stonegate-offsite"
 
 info "Domain:          $DOMAIN"
 info "App directory:   $APP_DIR"
@@ -302,7 +302,7 @@ account = $B2_KEY_ID
 key = $B2_APPLICATION_KEY
 hard_delete = true
 EOF
-    REMOTE_PATH="$RCLONE_REMOTE_NAME:$B2_BUCKET/hedgegate"
+    REMOTE_PATH="$RCLONE_REMOTE_NAME:$B2_BUCKET/stonegate"
     OFFSITE_LABEL="Backblaze B2 bucket '$B2_BUCKET'"
   else
     info "Configuring rclone remote '$RCLONE_REMOTE_NAME' for S3-compatible store..."
@@ -317,7 +317,7 @@ secret_access_key = $S3_SECRET_KEY
 region = ${S3_REGION:-auto}
 acl = private
 EOF
-    REMOTE_PATH="$RCLONE_REMOTE_NAME:$S3_BUCKET/hedgegate"
+    REMOTE_PATH="$RCLONE_REMOTE_NAME:$S3_BUCKET/stonegate"
     OFFSITE_LABEL="S3 bucket '$S3_BUCKET' at $S3_ENDPOINT"
   fi
 
@@ -330,7 +330,7 @@ EOF
   fi
 
   # Wrapper script: tar -> upload -> prune local -> prune remote (atomic-ish).
-  BACKUP_SCRIPT="/usr/local/bin/hedgegate-backup.sh"
+  BACKUP_SCRIPT="/usr/local/bin/stonegate-backup.sh"
   cat > "$BACKUP_SCRIPT" <<EOF
 #!/usr/bin/env bash
 set -euo pipefail
@@ -369,12 +369,12 @@ else
 fi
 
 # Replace any prior cron entry for our backup dir / wrapper to keep it idempotent.
-( crontab -l 2>/dev/null | grep -v -e "$BACKUP_DIR" -e "hedgegate-backup.sh" ; echo "$CRON_LINE" ) | crontab -
+( crontab -l 2>/dev/null | grep -v -e "$BACKUP_DIR" -e "stonegate-backup.sh" ; echo "$CRON_LINE" ) | crontab -
 ok "Daily 03:00 backup scheduled (local retention ${LOCAL_RETENTION_DAYS}d) -> $BACKUP_DIR"
 
 # ---- summary ----------------------------------------------------------------
 echo
-ok "HedgeGate is live."
+ok "Stonegate is live."
 echo
 echo "  URL:        https://$DOMAIN"
 echo "  Admin:      https://$DOMAIN/admin   (header x-admin-key: $ADMIN_KEY)"
@@ -385,7 +385,7 @@ echo "  Backups:    $BACKUP_DIR  (local retention ${LOCAL_RETENTION_DAYS}d)"
 if [ "$OFFSITE_MODE" != "none" ]; then
   echo "  Off-box:    $OFFSITE_LABEL  (remote retention ${B2_REMOTE_RETENTION_DAYS}d)"
   echo "  Off-box log: $BACKUP_DIR/offsite.log"
-  echo "  Test now:   /usr/local/bin/hedgegate-backup.sh && tail $BACKUP_DIR/offsite.log"
+  echo "  Test now:   /usr/local/bin/stonegate-backup.sh && tail $BACKUP_DIR/offsite.log"
 else
   echo "  Off-box:    DISABLED (local-only backups)"
 fi
