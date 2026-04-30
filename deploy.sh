@@ -197,7 +197,18 @@ pm2 save >/dev/null
 # Register pm2 with systemd so it auto-starts on reboot.
 if ! systemctl list-unit-files | grep -q '^pm2-root\.service'; then
   info "Registering pm2 with systemd..."
-  pm2 startup systemd -u root --hp /root | tail -n 1 | bash >/dev/null
+  # pm2 prints a `sudo env PATH=...` line we need to execute. Older versions
+  # prefixed it with a literal `$` (shell-prompt convention), which broke a
+  # naive `... | bash`. Match the actual command line directly instead.
+  PM2_STARTUP_CMD=$(pm2 startup systemd -u root --hp /root 2>&1 | \
+    grep -oE 'sudo env PATH=[^[:space:]]+ pm2 startup systemd -u root --hp /root' | \
+    tail -n 1)
+  if [ -n "$PM2_STARTUP_CMD" ]; then
+    eval "$PM2_STARTUP_CMD" >/dev/null
+  else
+    # Fallback for newer pm2 that auto-installs the systemd unit itself.
+    pm2 startup systemd -u root --hp /root >/dev/null 2>&1 || true
+  fi
   pm2 save >/dev/null
 fi
 ok "pm2 process '$PM2_NAME' is running."
