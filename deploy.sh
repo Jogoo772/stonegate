@@ -267,11 +267,19 @@ systemctl reload nginx
 ok "nginx reloaded."
 
 # ---- 7. firewall ------------------------------------------------------------
+# Enabling ufw briefly resets iptables. If we're inside an SSH session, that
+# can drop the connection and SIGHUP the script. We protect the rest of the
+# script by ignoring SIGHUP (and double-allowing port 22 directly, in case the
+# 'OpenSSH' app profile isn't installed on this image).
 info "Configuring ufw firewall..."
-ufw allow OpenSSH >/dev/null
-ufw allow 'Nginx Full' >/dev/null
-yes | ufw enable >/dev/null
-ok "ufw enabled (OpenSSH + Nginx Full)."
+trap '' HUP
+ufw allow 22/tcp >/dev/null 2>&1 || true
+ufw allow OpenSSH >/dev/null 2>&1 || true
+ufw allow 'Nginx Full' >/dev/null 2>&1 || true
+ufw allow 80/tcp >/dev/null 2>&1 || true
+ufw allow 443/tcp >/dev/null 2>&1 || true
+yes | ufw enable >/dev/null 2>&1 || true
+ok "ufw enabled (SSH + HTTP + HTTPS allowed)."
 
 # ---- 8. HTTPS ---------------------------------------------------------------
 info "Requesting Let's Encrypt cert for $DOMAIN..."
