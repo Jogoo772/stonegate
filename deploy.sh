@@ -148,7 +148,10 @@ info "Building api-server..."
 pnpm --filter @workspace/api-server run build
 
 info "Building frontend (horizon-markets)..."
-pnpm --filter @workspace/horizon-markets run build
+# vite.config.ts requires PORT and BASE_PATH at config-load time, even for
+# `vite build`. PORT is only used by the dev server (irrelevant in prod), and
+# BASE_PATH=/ since nginx serves the SPA at the root.
+PORT=5173 BASE_PATH=/ pnpm --filter @workspace/horizon-markets run build
 
 FRONTEND_DIST="$APP_DIR/artifacts/horizon-markets/dist"
 [ -d "$FRONTEND_DIST" ] || die "Frontend build did not produce $FRONTEND_DIST"
