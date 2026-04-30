@@ -156,7 +156,7 @@ function AdminLogin({ onAuth }: { onAuth: (key: string) => void }) {
               <ShieldCheck className="w-7 h-7" />
             </div>
             <h1 className="text-center text-2xl font-black tracking-tight">
-              HedgeGate Admin
+              Stonegate Admin
             </h1>
             <p className="text-center text-sm text-muted-foreground mt-1">
               Withdrawal review console
@@ -334,7 +334,7 @@ function AdminConsole({
             </div>
             <div>
               <div className="text-sm font-bold tracking-tight">
-                HedgeGate Admin
+                Stonegate Admin
               </div>
               <div className="text-[11px] text-muted-foreground">
                 Withdrawal review console

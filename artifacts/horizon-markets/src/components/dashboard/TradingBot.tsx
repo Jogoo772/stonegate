@@ -103,7 +103,7 @@ export function TradingBot({
           </div>
           <div>
             <h2 className="text-xl font-bold tracking-tight flex items-center gap-2">
-              HedgeGate AlphaBot
+              Stonegate AlphaBot
               <span
                 className={`inline-flex items-center gap-1.5 text-[10px] font-bold tracking-widest px-2 py-0.5 rounded-full uppercase ${
                   bot.isRunning

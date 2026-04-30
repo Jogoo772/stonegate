@@ -24,7 +24,7 @@ export function Navbar() {
             H
           </div>
           <span className="font-bold text-xl tracking-tight">
-            HedgeGate<span className="text-primary">.</span>
+            Stonegate<span className="text-primary">.</span>
           </span>
         </Link>
 

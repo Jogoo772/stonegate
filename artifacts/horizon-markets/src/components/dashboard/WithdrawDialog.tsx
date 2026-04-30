@@ -177,7 +177,7 @@ export function WithdrawDialog({
                 </DialogTitle>
                 <DialogDescription className="text-muted-foreground">
                   Submit a withdrawal request — every withdrawal is reviewed
-                  and approved manually by the HedgeGate administrator.
+                  and approved manually by the Stonegate administrator.
                 </DialogDescription>
               </DialogHeader>
 

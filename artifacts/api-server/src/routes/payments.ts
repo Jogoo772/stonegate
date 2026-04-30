@@ -88,7 +88,7 @@ router.post("/create", async (req, res) => {
   const description =
     typeof body["description"] === "string"
       ? (body["description"] as string).slice(0, 120)
-      : "HedgeGate deposit";
+      : "Stonegate deposit";
 
   if (!Number.isFinite(priceAmount) || priceAmount <= 0) {
     res.status(400).json({ error: "Invalid amount" });

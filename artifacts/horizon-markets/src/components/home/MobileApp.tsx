@@ -58,7 +58,7 @@ export function MobileApp() {
               <div className="absolute inset-0 bg-primary/20 blur-[60px] rounded-full"></div>
               <img 
                 src="/images/app-mockup.png" 
-                alt="HedgeGate Mobile App" 
+                alt="Stonegate Mobile App" 
                 className="relative z-10 w-full h-auto drop-shadow-2xl"
               />
             </div>

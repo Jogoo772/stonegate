@@ -212,7 +212,7 @@ export function DepositDialog({
                   <span>
                     On submit, NOWPayments generates a unique payment address
                     just for this deposit. Pay any amount up to the quote — your
-                    HedgeGate balance updates the moment the network confirms.
+                    Stonegate balance updates the moment the network confirms.
                   </span>
                 </div>
 
@@ -305,7 +305,7 @@ function ActivePayment({
             Deposit confirmed
           </DialogTitle>
           <DialogDescription className="text-center text-muted-foreground">
-            ${deposit.amount.toFixed(2)} has been credited to your HedgeGate
+            ${deposit.amount.toFixed(2)} has been credited to your Stonegate
             balance.
           </DialogDescription>
         </DialogHeader>

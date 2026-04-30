@@ -570,7 +570,7 @@ export function useTradingBot() {
             priceAmount: Number(amount.toFixed(2)),
             payCurrency,
             orderId: `hg_${userKey}_${Date.now()}`.slice(0, 64),
-            description: `HedgeGate deposit (${userKey})`,
+            description: `Stonegate deposit (${userKey})`,
           }),
         });
         const data = (await r.json().catch(() => ({}))) as {

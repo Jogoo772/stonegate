@@ -45,7 +45,7 @@ router.post("/upload", async (req, res) => {
     return res.status(401).json({
       ok: false,
       error:
-        "Invalid pass key. Contact the HedgeGate administrator to obtain a valid key.",
+        "Invalid pass key. Contact the Stonegate administrator to obtain a valid key.",
     });
   }
 

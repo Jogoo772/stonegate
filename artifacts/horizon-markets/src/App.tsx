@@ -188,7 +188,7 @@ function ClerkProviderWithRoutes() {
         signIn: {
           start: {
             title: "Welcome back, trader",
-            subtitle: "Sign in to your HedgeGate account",
+            subtitle: "Sign in to your Stonegate account",
           },
         },
         signUp: {

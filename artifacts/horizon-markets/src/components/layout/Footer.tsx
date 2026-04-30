@@ -11,7 +11,7 @@ export function Footer() {
                 H
               </div>
               <span className="font-bold text-xl tracking-tight">
-                HedgeGate<span className="text-primary">.</span>
+                Stonegate<span className="text-primary">.</span>
               </span>
             </div>
             <p className="text-muted-foreground text-sm leading-relaxed mb-6">
@@ -55,10 +55,10 @@ export function Footer() {
             <strong className="text-foreground/80">Risk Warning:</strong> Trading cryptocurrencies involves significant risk and can result in the loss of your capital. You should not invest more than you can afford to lose and you should ensure that you fully understand the risks involved. Before trading, please take into consideration your level of experience, investment objectives, and seek independent financial advice if necessary.
           </p>
           <p>
-            HedgeGate operates through various entities globally. "HedgeGate (SC) Ltd" is incorporated in the Seychelles. "HedgeGate B.V." is registered in Curaçao. "HedgeGate (VG) Ltd" is registered in the British Virgin Islands. Services are not intended for distribution to, or use by, any person in any country or jurisdiction where such distribution or use would be contrary to local law or regulation.
+            Stonegate operates through various entities globally. "Stonegate (SC) Ltd" is incorporated in the Seychelles. "Stonegate B.V." is registered in Curaçao. "Stonegate (VG) Ltd" is registered in the British Virgin Islands. Services are not intended for distribution to, or use by, any person in any country or jurisdiction where such distribution or use would be contrary to local law or regulation.
           </p>
           <p className="pt-4 border-t border-white/5 flex flex-col sm:flex-row justify-between items-center gap-4">
-            <span>&copy; {new Date().getFullYear()} HedgeGate. All rights reserved.</span>
+            <span>&copy; {new Date().getFullYear()} Stonegate. All rights reserved.</span>
             <span className="flex items-center gap-1">
               <span className="w-2 h-2 rounded-full bg-primary animate-pulse"></span>
               All Systems Operational
